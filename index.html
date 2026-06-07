@@ -377,7 +377,7 @@ const esc=s=>(''+s).replace(/&/g,'&amp;').replace(/</g,'&lt;');
 
 const TIPS={
   ivinfo:`<b>Exit volatility regime.</b> Scales the whole 6/5 smile when positions are <b>marked at the sell date</b> &mdash; entry cost always stays at the real 6/5 mids. Presets are stylized from oil-vol history: OVX ran ~47&rarr;~100 into the Mar '22 invasion then roughly halved by summer; implied vol collapsed when Desert Storm opened in Jan '91. Effective Oct ATM IV shown live above. The Monte Carlo ignores this slider and uses its own distance-to-peak vol model.`,
-  rollinfo:()=>{let t=`<b>Roll yield from the term structure.</b> BNO holds front-month Brent; rolling down a backwardated curve harvests carry, contango bleeds it. Default <b>${(CURVE.def*100).toFixed(0)}%/yr</b> is computed from the est. 6/5 strip (front spread ${(CURVE.front*100).toFixed(1)}%/yr, 6-mo blend ${(CURVE.blend*100).toFixed(1)}%/yr, averaged). Mapping: BNO = Brent/1.846 &times; e^(roll&middot;t). Bars below show the monthly BNO impact of your setting vs the curve default.<table><tr><th>Month</th><th>$/bbl</th></tr>`;
+  rollinfo:()=>{let t=`<b>Roll yield from the term structure.</b> BNO holds front-month Brent; rolling down a backwardated curve harvests carry, contango bleeds it. Default <b>${(CURVE.def*100).toFixed(0)}%/yr</b> is computed from the est. 6/5 strip (front spread ${(CURVE.front*100).toFixed(1)}%/yr, 6-mo blend ${(CURVE.blend*100).toFixed(1)}%/yr, averaged). Mapping: BNO = Brent/1.846 &times; e^(roll&middot;t). Bars show the cumulative BNO price drift from carry alone, month by month at your setting.<table><tr><th>Month</th><th>$/bbl</th></tr>`;
     CURVE.pts.forEach(p=>t+=`<tr><td>${p[0]}</td><td>$${p[1].toFixed(2)}</td></tr>`);return t+`</table>`;},
   labinfo:`<b>Strategy lab.</b> Configure a structure on the real chains, read PoP and breakevens, then push it into the portfolio with the lots you want. Curves are marked at the sell date with remaining time value; the 3D surface maps return across strike &times; Brent. PoP is risk-neutral on the base smile and doesn't move with the vol slider. The diagonal's back-month leg is the most model-sensitive number here (sticky-by-strike assumption).`,
   pfinfo:`<b>Portfolio.</b> Legs added from the lab arrive at modeled 6/5 mids &mdash; overwrite cost basis with your real fills. Options &times;100, shares 1:1 on BNO. Saved in this browser; export/import JSON to move books between devices.`,
@@ -743,10 +743,10 @@ function updateAddLbl(){
 
 function rollImpact(){
   const r=state.roll,r0=CURVE.def,W=640,H=96,n=7;
-  let g=`<text x="0" y="10" fill="#8b939d" font-size="10.5">BNO impact by month \u00b7 you ${r>=0?'+':''}${(r*100).toFixed(0)}%/yr vs curve ${r0>=0?'+':''}${(r0*100).toFixed(0)}%/yr</text>`;
+  let g=`<text x="0" y="10" fill="#8b939d" font-size="10.5">Cumulative BNO carry by month at ${r>=0?'+':''}${(r*100).toFixed(0)}%/yr \u00b7 curve default ${r0>=0?'+':''}${(r0*100).toFixed(0)}%/yr</text>`;
   const bw=(W-16)/n,zero=56,ds=[];
   let maxd=0;
-  for(let m=1;m<=n;m++){const d=100*(Math.exp(r*m/12)-Math.exp(r0*m/12))/Math.exp(r0*m/12);ds.push(d);maxd=Math.max(maxd,Math.abs(d));}
+  for(let m=1;m<=n;m++){const d=100*(Math.exp(r*m/12)-1);ds.push(d);maxd=Math.max(maxd,Math.abs(d));}
   const k=maxd>0?Math.min(2.6,24/maxd):2.6;
   g+=`<line x1="0" y1="${zero}" x2="${W}" y2="${zero}" stroke="rgba(255,255,255,.18)"/>`;
   ds.forEach((d,i)=>{const x=8+i*bw,w=bw-14,cx=x+w/2,h=Math.max(Math.abs(d)*k,0.6),y=d>=0?zero-h:zero;
@@ -766,10 +766,11 @@ function drawPreview(){
   const pk=state.pk,B0=DATA.brent0;
   const D=Math.max(8,Math.round(days(DATA.dataDate,pk.date)));
   const Hor=clamp(D+3*pk.dsig+18,70,390);
-  const ylo=86,yhi=Math.max(pk.mu+2.4*pk.sig,135);
+  const tmax=Math.max(0,...state.tiers.filter(t=>t.on&&t.pct>0).map(t=>t.tgt));
+  const ylo=86,yhi=Math.max(pk.mu+2.4*pk.sig,135,tmax?tmax+8:0);
   const X=d=>ml+d/Hor*pw, Y=b=>mt+(yhi-b)/(yhi-ylo)*ph;
   let g=`<rect width="${W}" height="${H}" fill="#101218" rx="8"/><rect x="${ml}" y="${mt}" width="${pw}" height="${ph}" fill="#0c0e13" stroke="#262a33"/>`;
-  g+=`<defs><linearGradient id="pvg" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#4fd1b0"/><stop offset="0.7" stop-color="#d9c47e"/><stop offset="1" stop-color="#ff8a5c"/></linearGradient></defs>`;
+  g+=`<defs><linearGradient id="pvg" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#4fd1b0"/><stop offset="0.7" stop-color="#d9c47e"/><stop offset="1" stop-color="#ff8a5c"/></linearGradient><clipPath id="pvclip"><rect x="${ml}" y="${mt}" width="${pw}" height="${ph}"/></clipPath></defs>`;
   niceTicks(ylo,yhi,6).forEach(v=>{const y=Y(v).toFixed(1);g+=`<line x1="${ml}" y1="${y}" x2="${ml+pw}" y2="${y}" stroke="#fff" stroke-opacity="0.06"/><text x="${ml-8}" y="${+y+4}" fill="#9aa1aa" font-size="11" text-anchor="end">$${v.toFixed(0)}</text>`;});
   const MN=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   const mc=pdate(DATA.dataDate);mc.setUTCDate(1);mc.setUTCMonth(mc.getUTCMonth()+1);
@@ -782,6 +783,7 @@ function drawPreview(){
   [['july','#5aa9ff'],['october','#d9c47e'],['january','#a98ef5']].forEach(p=>{
     const dd=days(DATA.dataDate,DATA.contracts[p[0]].expiry);
     if(dd<=Hor){const x=X(dd).toFixed(1);g+=`<line x1="${x}" y1="${mt}" x2="${x}" y2="${mt+ph}" stroke="${p[1]}" stroke-opacity="0.4" stroke-dasharray="2 5"/><text x="${x}" y="${mt+11}" fill="${p[1]}" font-size="9.5" text-anchor="middle" opacity="0.85">${DATA.contracts[p[0]].short} exp</text>`;}});
+  g+=`<g clip-path="url(#pvclip)">`;
   const rng=mulberry32(42);
   for(let i=0;i<14;i++){
     const P=clamp(pk.mu+pk.sig*gaussOf(rng),B0*1.04,400);
@@ -804,6 +806,7 @@ function drawPreview(){
   const rx=Math.max(6,X(D+pk.dsig)-X(D)), ry=Math.max(6,Y(pk.mu)-Y(pk.mu+pk.sig));
   g+=`<ellipse cx="${X(D).toFixed(1)}" cy="${Y(clamp(pk.mu,ylo+2,yhi-2)).toFixed(1)}" rx="${rx.toFixed(1)}" ry="${ry.toFixed(1)}" fill="rgba(217,196,126,0.06)" stroke="#d9c47e" stroke-dasharray="5 5" stroke-width="1.4"/>`;
   g+=`<circle cx="${X(D).toFixed(1)}" cy="${Y(clamp(pk.mu,ylo,yhi)).toFixed(1)}" r="3.6" fill="#d9c47e"/>`;
+  g+=`</g>`;
   state.tiers.forEach((t,i)=>{if(!t.on||t.pct<=0)return;if(t.tgt<ylo||t.tgt>yhi)return;const y=Y(t.tgt).toFixed(1);
     g+=`<line x1="${ml}" y1="${y}" x2="${ml+pw}" y2="${y}" stroke="#ff3da6" stroke-opacity="0.55" stroke-dasharray="6 5" stroke-width="1.2"/><text x="${ml+pw+8}" y="${+y+4}" fill="#ff3da6" font-size="10.5">T${i+1} ${t.pct}% @ $${t.tgt}</text>`;});
   g+=`<text x="${ml}" y="14" fill="#8b939d" font-size="11">BRENT PATH \u00b7 today \u2192 sampled blow-off \u00b7 spot $${B0.toFixed(2)}</text>`;
@@ -892,7 +895,7 @@ function drawResults(){
   if(hi-lo<1)hi=lo+1;
   const span0=hi-lo;lo-=span0*0.05;hi+=span0*0.05;
   const bins=46,cnt=new Array(bins).fill(0);
-  for(let i=0;i<N;i++){let b=Math.floor((s[i]-lo)/(hi-lo)*bins);if(b<0)b=0;if(b>bins-1)b=bins-1;cnt[b]++;}
+  for(let i=0;i<N;i++){const v=s[i];if(v<lo||v>hi)continue;let b=Math.floor((v-lo)/(hi-lo)*bins);if(b>bins-1)b=bins-1;cnt[b]++;}
   const maxc=Math.max.apply(null,cnt)||1;
   const hx0=64,hx1=830,hy0=112,hy1=556,bw=(hx1-hx0)/bins;
   const Xp=v=>hx0+(v-lo)/(hi-lo)*(hx1-hx0),Yc=c=>hy1-c/maxc*(hy1-hy0);
@@ -947,24 +950,27 @@ function drawResults(){
 
 $('expng').onclick=()=>{
   if(!state.lastRes){toast('Run the simulation first');return;}
-  try{
-    const svg=$('resfig');
-    const src=new XMLSerializer().serializeToString(svg);
-    const url=URL.createObjectURL(new Blob([src],{type:'image/svg+xml;charset=utf-8'}));
+  let src=new XMLSerializer().serializeToString($('resfig'));
+  if(src.indexOf('<?xml')!==0)src='<?xml version="1.0" encoding="UTF-8"?>\n'+src;
+  const dl=(href,name)=>{const a=document.createElement('a');a.href=href;a.download=name;document.body.appendChild(a);a.click();a.remove();};
+  const dataUrl='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(src);
+  const raster=(href,cleanup,next)=>{
     const img=new Image();
     img.onload=()=>{try{
       const c=document.createElement('canvas');c.width=2480;c.height=1560;
       const x=c.getContext('2d');x.fillStyle='#0d0f14';x.fillRect(0,0,c.width,c.height);
       x.drawImage(img,0,0,c.width,c.height);
-      c.toBlob(b=>{if(!b){toast('PNG encode failed');return;}
-        const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='bno_spike_sim.png';
-        document.body.appendChild(a);a.click();a.remove();
-        setTimeout(()=>URL.revokeObjectURL(a.href),5000);},'image/png');
-      URL.revokeObjectURL(url);
-    }catch(err){toast('Export failed: '+err.message);}};
-    img.onerror=()=>toast('Export failed \u2014 rasterize error');
-    img.src=url;
-  }catch(err){toast('Export failed: '+err.message);}};
+      c.toBlob(b=>{cleanup();if(!b){next();return;}
+        const u=URL.createObjectURL(b);dl(u,'bno_spike_sim.png');
+        setTimeout(()=>URL.revokeObjectURL(u),5000);toast('PNG exported');},'image/png');
+    }catch(err){cleanup();next();}};
+    img.onerror=()=>{cleanup();next();};
+    img.src=href;};
+  let burl=null;
+  try{burl=URL.createObjectURL(new Blob([src],{type:'image/svg+xml;charset=utf-8'}));}catch(e){}
+  const svgFallback=()=>{dl(dataUrl,'bno_spike_sim.svg');toast('PNG blocked in this viewer \u2014 saved as SVG instead');};
+  const tryData=()=>raster(dataUrl,()=>{},svgFallback);
+  if(burl)raster(burl,()=>URL.revokeObjectURL(burl),tryData);else tryData();};
 
 $('steps').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
   const sv=b.dataset.s;if(sv===state.step)return;state.step=sv;
