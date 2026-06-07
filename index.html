@@ -1,0 +1,1096 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>BNO Spike Lab</title>
+<style>
+  :root{
+    --bg:#08090c;--txt:#edf1f5;--sub:#bcc5cf;--mut:#7e8894;
+    --teal:#4fd1b0;--gold:#d9c47e;--vio:#a98ef5;--blue:#5aa9ff;--pink:#ff3da6;
+    --pos:#7fd39b;--neg:#5aa9ff;--warn:#e8a861;
+    --glass:linear-gradient(160deg,rgba(255,255,255,.055),rgba(255,255,255,.022));
+    --bord:rgba(255,255,255,.085);
+    --mono:'JetBrains Mono','IBM Plex Mono',ui-monospace,'DejaVu Sans Mono',Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);font-family:var(--mono);font-size:13.5px;line-height:1.45;-webkit-text-size-adjust:100%;overflow-x:hidden}
+  #bgfx{position:fixed;inset:-25%;z-index:-1;filter:blur(110px) saturate(130%);opacity:.5;animation:hue 240s linear infinite}
+  #bgfx i{position:absolute;border-radius:50%}
+  #bgfx .b1{width:55vw;height:55vw;left:-8%;top:-12%;background:radial-gradient(circle,#103d33,transparent 65%);animation:f1 90s ease-in-out infinite alternate}
+  #bgfx .b2{width:48vw;height:48vw;right:-10%;top:8%;background:radial-gradient(circle,#3a2f12,transparent 65%);animation:f2 110s ease-in-out infinite alternate}
+  #bgfx .b3{width:52vw;height:52vw;left:22%;bottom:-22%;background:radial-gradient(circle,#231a3d,transparent 65%);animation:f3 130s ease-in-out infinite alternate}
+  @keyframes hue{to{filter:blur(110px) saturate(130%) hue-rotate(360deg)}}
+  @keyframes f1{to{transform:translate(9vw,7vh) scale(1.15)}}
+  @keyframes f2{to{transform:translate(-7vw,10vh) scale(.9)}}
+  @keyframes f3{to{transform:translate(6vw,-8vh) scale(1.1)}}
+  .ga{background-image:linear-gradient(100deg,#4fd1b0,#d9c47e,#a98ef5,#5aa9ff,#4fd1b0);background-size:420% 100%;animation:ga 55s linear infinite}
+  @keyframes ga{to{background-position:420% 0}}
+  @media(prefers-reduced-motion:reduce){#bgfx,.ga,#bgfx i,#steps button.on::after,#steps button.on .num,.btn.primary{animation:none!important}}
+  .wrap{width:100%;max-width:1840px;margin:0 auto;padding:16px clamp(10px,1.6vw,30px) 60px}
+  header{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px 18px;margin-bottom:14px}
+  h1{font-size:clamp(20px,3.4vw,27px);font-weight:800;letter-spacing:1px;margin:0;-webkit-background-clip:text;background-clip:text;color:transparent}
+  .chip{display:inline-flex;align-items:center;gap:6px;background:var(--glass);border:1px solid var(--bord);border-radius:999px;padding:4px 11px;font-size:11.5px;color:var(--sub);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+  .chip b{color:var(--txt);font-weight:700}
+  .chip.warn{border-color:rgba(232,168,97,.5);color:var(--warn)}
+  .chip.ok{border-color:rgba(127,211,155,.45)}
+  .panel{background:var(--glass);backdrop-filter:blur(16px) saturate(150%);-webkit-backdrop-filter:blur(16px) saturate(150%);border:1px solid var(--bord);border-radius:16px;padding:15px;box-shadow:0 12px 34px rgba(0,0,0,.38),inset 0 1px 0 rgba(255,255,255,.055)}
+  .ptitle{display:flex;align-items:center;gap:8px;font-size:11px;letter-spacing:1.4px;color:var(--mut);text-transform:uppercase;margin:0 0 12px;font-weight:600}
+  .ptitle svg{width:15px;height:15px;color:var(--gold);flex:0 0 auto}
+  #steps{display:flex;gap:8px;margin:0 0 14px}
+  #steps button{position:relative;background:var(--glass);border:1px solid var(--bord);color:var(--sub);border-radius:13px;padding:11px 20px;font-family:var(--mono);font-size:14px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:9px;backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
+  #steps button.on{color:var(--txt);border-color:rgba(255,255,255,.18)}
+  #steps button.on::after{content:'';position:absolute;left:14px;right:14px;bottom:6px;height:2.5px;border-radius:2px;background-image:linear-gradient(100deg,#4fd1b0,#d9c47e,#a98ef5,#5aa9ff,#4fd1b0);background-size:420% 100%;animation:ga 55s linear infinite}
+  #steps .num{width:20px;height:20px;border-radius:50%;border:1px solid var(--bord);display:inline-flex;align-items:center;justify-content:center;font-size:11px}
+  #steps button.on .num{border:0;color:#0a0c0f;font-weight:800;background-image:linear-gradient(100deg,#4fd1b0,#d9c47e,#a98ef5,#5aa9ff,#4fd1b0);background-size:420% 100%;animation:ga 55s linear infinite}
+  .badge{min-width:19px;height:19px;border-radius:999px;background:rgba(255,61,166,.16);border:1px solid rgba(255,61,166,.45);color:var(--pink);font-size:10.5px;display:inline-flex;align-items:center;justify-content:center;padding:0 5px;font-weight:700}
+  .scn{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px;margin-bottom:14px}
+  .grp{display:flex;flex-direction:column;gap:6px;min-width:0}
+  .grp>label{font-size:10px;letter-spacing:1.1px;color:var(--mut);text-transform:uppercase;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+  .grp>label b{color:var(--txt);letter-spacing:.2px;text-transform:none;font-size:11.5px}
+  .seg{display:inline-flex;flex-wrap:wrap;border:1px solid var(--bord);border-radius:10px;overflow:hidden;max-width:100%;background:rgba(0,0,0,.18)}
+  .seg button{background:transparent;color:var(--sub);border:0;padding:8px 13px;font-family:var(--mono);font-size:12.5px;cursor:pointer;white-space:nowrap}
+  .seg button+button{border-left:1px solid var(--bord)}
+  .seg button.on{background:rgba(255,255,255,.07);color:var(--txt);box-shadow:inset 0 -2px 0 var(--gold)}
+  input[type=number],input[type=date],select{background:rgba(10,12,16,.6);color:var(--txt);border:1px solid var(--bord);border-radius:9px;padding:8px 9px;font-family:var(--mono);font-size:13px;max-width:100%}
+  input[type=number]{width:82px}
+  input:focus,select:focus{outline:none;border-color:rgba(79,209,176,.55)}
+  input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:26px;background:transparent;cursor:pointer}
+  input[type=range]::-webkit-slider-runnable-track{height:6px;border-radius:4px;background:var(--trk,#3c4350)}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:17px;height:17px;border-radius:50%;background:#e8edf2;border:2px solid #0a0c0f;margin-top:-5.5px;box-shadow:0 0 0 3px rgba(255,255,255,.12)}
+  input[type=range]::-moz-range-track{height:6px;border-radius:4px;background:var(--trk,#3c4350)}
+  input[type=range]::-moz-range-thumb{width:15px;height:15px;border-radius:50%;background:#e8edf2;border:2px solid #0a0c0f}
+  .iv input[type=range]{--trk:linear-gradient(90deg,#5aa9ff,#7e8894 38%,#7e8894 44%,#e8a861 70%,#ff6d6d)}
+  .rl input[type=range]{--trk:linear-gradient(90deg,#e07a6a,#7e8894 46%,#7e8894 54%,#4fd1b0)}
+  .hint{width:17px;height:17px;border-radius:50%;border:1px solid var(--bord);background:rgba(255,255,255,.05);color:var(--mut);font-size:10.5px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;font-family:var(--mono);padding:0;flex:0 0 auto}
+  .hint:hover{color:var(--gold);border-color:var(--gold)}
+  #pop{position:fixed;z-index:60;max-width:340px;background:rgba(16,19,25,.92);backdrop-filter:blur(20px) saturate(150%);-webkit-backdrop-filter:blur(20px) saturate(150%);border:1px solid rgba(255,255,255,.14);border-radius:13px;padding:13px 14px;font-size:11.5px;color:var(--sub);line-height:1.55;box-shadow:0 18px 50px rgba(0,0,0,.55);display:none}
+  #pop b{color:var(--txt)} #pop table{margin-top:6px} #pop td,#pop th{padding:2.5px 7px;font-size:11px}
+  .stratrow{display:flex;gap:10px;overflow-x:auto;padding:2px 2px 8px;scroll-snap-type:x proximity}
+  @media(min-width:920px){.stratrow{flex-wrap:wrap;overflow:visible}}
+  .scard{flex:0 0 158px;scroll-snap-align:start;background:var(--glass);border:1px solid var(--bord);border-radius:13px;padding:9px 10px 8px;cursor:pointer;font-family:var(--mono);color:var(--sub);text-align:left;transition:border-color .2s}
+  .scard:hover{border-color:rgba(255,255,255,.2)}
+  .scard.on{color:var(--txt);border-color:transparent;box-shadow:0 0 0 1.6px rgba(79,209,176,.65),0 0 22px rgba(79,209,176,.14)}
+  .scard svg{width:100%;height:42px;display:block;margin-bottom:6px}
+  .scard span{font-size:11.5px;font-weight:600}
+  .controls{display:flex;flex-wrap:wrap;gap:12px 20px;align-items:flex-end}
+  .layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(320px,400px);gap:14px;align-items:start;margin-top:14px}
+  @media(max-width:1280px){.layout{grid-template-columns:1fr}}
+  .build{display:grid;grid-template-columns:minmax(0,7fr) minmax(340px,3fr);gap:14px;align-items:start}
+  @media(max-width:1180px){.build{grid-template-columns:1fr}}
+  svg.fig{width:100%;height:auto;display:block;touch-action:none}
+  .side h3{font-size:11px;letter-spacing:1.2px;color:var(--mut);text-transform:uppercase;margin:0 0 10px;font-weight:600}
+  table{width:100%;border-collapse:collapse;font-size:12px}
+  th,td{padding:5px 5px;text-align:right}
+  th{color:var(--mut);font-weight:500;font-size:10px;letter-spacing:.3px;border-bottom:1px solid var(--bord)}
+  td:first-child,th:first-child{text-align:left}
+  tr.best td{color:var(--pink);font-weight:700}
+  tr.tot td{border-top:1px solid var(--bord);font-weight:700;color:var(--txt)}
+  .stat{display:flex;justify-content:space-between;padding:6.5px 0;border-bottom:1px solid rgba(255,255,255,.06);gap:10px}
+  .stat:last-child{border-bottom:0}
+  .stat .k{color:var(--mut);font-size:11.5px}
+  .stat .v{font-weight:600;text-align:right;font-size:12.5px}
+  .pos{color:var(--pos)}.neg{color:var(--neg)}
+  .legend{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:11px;color:var(--sub);margin-top:8px;align-items:center}
+  .legend i{display:inline-block;width:14px;height:3px;border-radius:2px;margin-right:6px;vertical-align:middle}
+  .hidden{display:none!important}
+  .btn{background:var(--glass);border:1px solid var(--bord);color:var(--txt);border-radius:10px;padding:9px 15px;cursor:pointer;font-family:var(--mono);font-size:13px;font-weight:600;display:inline-flex;align-items:center;gap:8px;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+  .btn svg{width:14px;height:14px}
+  .btn:hover{border-color:rgba(255,255,255,.22)}
+  .btn.primary{border:0;color:#0a0c0f;background-image:linear-gradient(100deg,#4fd1b0,#d9c47e,#a98ef5,#5aa9ff,#4fd1b0);background-size:420% 100%;animation:ga 55s linear infinite}
+  .btn.primary:hover{filter:brightness(1.08)}
+  .btn.primary svg{color:#0a0c0f}
+  .linkbtn{background:none;border:0;color:var(--gold);cursor:pointer;font-family:var(--mono);font-size:11px;text-decoration:underline;padding:0}
+  .rm{background:none;border:0;color:var(--neg);cursor:pointer;font-family:var(--mono);font-size:14px;padding:0 4px}
+  .costwrap{display:flex;gap:6px;align-items:center}
+  textarea{width:100%;min-height:60px;background:rgba(10,12,16,.6);color:var(--sub);border:1px solid var(--bord);border-radius:9px;font-family:var(--mono);font-size:11px;padding:8px;resize:vertical;margin-top:6px}
+  .tier{display:grid;grid-template-columns:38px 1fr 1fr;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.05)}
+  .tier:last-child{border-bottom:0}
+  .tog{width:34px;height:19px;border-radius:999px;background:rgba(255,255,255,.1);border:1px solid var(--bord);position:relative;cursor:pointer;padding:0}
+  .tog::after{content:'';position:absolute;top:2px;left:2px;width:13px;height:13px;border-radius:50%;background:#9aa3ad;transition:.18s}
+  .tog.on{background:rgba(79,209,176,.3);border-color:rgba(79,209,176,.6)}
+  .tog.on::after{left:17px;background:var(--teal)}
+  .fld{display:flex;align-items:center;gap:7px;font-size:11px;color:var(--mut);flex-wrap:wrap}
+  .fld input{width:72px}
+  #toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(20px);background:rgba(16,19,25,.94);border:1px solid rgba(79,209,176,.5);color:var(--txt);border-radius:11px;padding:10px 18px;font-size:12.5px;opacity:0;pointer-events:none;transition:.25s;z-index:70;backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);max-width:90vw;text-align:center}
+  #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .mcchips{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0 0}
+  .gridmini{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+  .foot{color:var(--mut);font-size:10.5px;margin-top:14px;line-height:1.6}
+</style>
+</head>
+<body>
+<div id="bgfx"><i class="b1"></i><i class="b2"></i><i class="b3"></i></div>
+<div class="wrap">
+<header>
+  <h1 class="ga">BNO SPIKE LAB</h1>
+  <span class="chip">BNO <b>$51.20</b></span>
+  <span class="chip">Brent <b>$94.50</b></span>
+  <span class="chip">&times;<b>1.846</b></span>
+  <span class="chip">EODHD <b>6/5/26</b> close</span>
+</header>
+
+<div id="steps">
+  <button data-s="build" class="on"><span class="num">1</span>Build portfolio<span class="badge" id="pfcount">0</span></button>
+  <button data-s="sim"><span class="num">2</span>Simulation studio</button>
+</div>
+
+<div class="scn">
+  <div class="panel iv">
+    <div class="ptitle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 19c3 0 3-14 6-14s3 9 6 9 3-5 6-5 2 10 2 10"/></svg>Exit volatility regime <button class="hint" data-tip="ivinfo">?</button></div>
+    <div class="grp"><label>Analog preset <b id="ivchip"></b></label>
+      <select id="ivpreset">
+        <option value="1">Hold current vol (no change)</option>
+        <option value="1.35">Escalation bid &mdash; run-up to strikes ('22 Feb)</option>
+        <option value="1.75">Panic spike &mdash; invasion day ('22 Mar 7)</option>
+        <option value="0.85">Cooldown &mdash; tensions ease ('11 Libya)</option>
+        <option value="0.65">Normalization &mdash; 3mo post-peak ('22 summer)</option>
+        <option value="0.45">Full crush &mdash; resolution ('91 Desert Storm)</option>
+        <option value="c">Custom (slider)</option>
+      </select>
+      <input type="range" id="ivmult" min="0.4" max="2.1" step="0.05" value="1">
+      <div style="display:flex;justify-content:space-between;font-size:9.5px;color:var(--mut)"><span>&minus;60% crush</span><span>hold</span><span>+110% spike</span></div>
+    </div>
+  </div>
+  <div class="panel rl">
+    <div class="ptitle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 17l5-5 4 3 7-8"/><path d="M20 7v4h-4"/></svg>Roll yield &mdash; curve carry <button class="hint" data-tip="rollinfo">?</button></div>
+    <div class="grp"><label>Annualized carry on BNO <b id="rollchip"></b></label>
+      <input type="range" id="rollslider" min="-0.30" max="0.30" step="0.01" value="0.11">
+      <div style="display:flex;justify-content:space-between;font-size:9.5px;color:var(--mut)"><span>contango drag</span><span>flat</span><span>backwardation</span></div>
+      <svg id="rollviz" viewBox="0 0 640 96" style="width:100%;height:auto;margin-top:4px"></svg>
+    </div>
+  </div>
+</div>
+
+<div id="tab-build">
+  <div class="build">
+    <div class="panel">
+      <div class="ptitle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l8 4.5v9L12 20l-8-4.5v-9z"/><path d="M12 11v9M4 6.5l8 4.5 8-4.5"/></svg>Strategy lab <button class="hint" data-tip="labinfo">?</button></div>
+      <div class="stratrow" id="stratcards"></div>
+      <div class="controls" style="margin-top:10px">
+        <div class="grp"><label id="explab">Expiration</label>
+          <div class="seg" id="exp">
+            <button data-c="july">Jul 17 &rsquo;26</button>
+            <button data-c="october" class="on">Oct 16 &rsquo;26</button>
+            <button data-c="january">Jan 15 &rsquo;27</button>
+          </div>
+        </div>
+        <div class="grp hidden" id="shortexpg"><label>Short leg expiry</label><select id="shortexp"></select></div>
+        <div class="grp" id="sellg"><label>Sell date</label><input type="date" id="sell" value="2026-07-14" min="2026-06-06" max="2027-01-15"></div>
+        <div class="grp legpair hidden"><label id="kbuylab">Buy strike</label><select id="kbuy"></select></div>
+        <div class="grp legpair hidden"><label id="kselllab">Sell strike</label><select id="ksell"></select></div>
+        <div class="grp" id="addkg"><label>Strike</label><select id="addk"></select></div>
+        <div class="grp"><label>Lots</label><input type="number" id="lots" value="4" min="1" step="1" style="width:64px"></div>
+        <div class="grp"><label>&nbsp;</label><button class="btn primary" id="addstrat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg><span id="addlbl">Add to portfolio</span></button></div>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:7px;margin-top:12px" id="labchips"></div>
+      <div class="seg hidden" id="viewtog" style="margin-top:11px">
+        <button data-v="curves" class="on">Curves</button>
+        <button data-v="surface">3D surface</button>
+      </div>
+      <div class="layout">
+        <div><svg id="chart" class="fig" viewBox="0 0 1000 560" role="img"></svg><div class="legend" id="legend"></div></div>
+        <div class="side" id="side"></div>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:14px">
+      <div class="panel">
+        <div class="ptitle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 019 9h-9z"/></svg>Portfolio <button class="hint" data-tip="pfinfo">?</button></div>
+        <div id="pftablewrap"></div>
+        <div class="controls" style="margin-top:12px">
+          <div class="grp"><label>Type</label>
+            <select id="lkind">
+              <option value="lc">Long call</option><option value="sc">Short call</option>
+              <option value="lp">Long put</option><option value="sp">Short put</option>
+              <option value="ls">Long shares</option><option value="ss">Short shares</option>
+            </select></div>
+          <div class="grp" id="lexpg"><label>Exp</label>
+            <select id="lexp"><option value="july">Jul</option><option value="october" selected>Oct</option><option value="january">Jan</option></select></div>
+          <div class="grp" id="lstrikeg"><label>K</label><input type="number" id="lK" value="60" min="40" max="110" step="1" style="width:66px"></div>
+          <div class="grp"><label id="lqtylab">Qty</label><input type="number" id="lqty" value="10" min="1" step="1" style="width:62px"></div>
+          <div class="grp"><label id="lcostlab">Cost basis</label>
+            <div class="costwrap"><input type="number" id="lcost" value="5.70" min="0" step="0.01" style="width:80px"><button class="linkbtn" id="lmodel">model</button></div></div>
+          <div class="grp"><label>&nbsp;</label><button class="btn" id="ladd">+ leg</button></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-top:12px">
+          <span style="color:var(--mut);font-size:10.5px;letter-spacing:1px">SAVE / LOAD</span>
+          <span><button class="linkbtn" id="pexport">export</button> &nbsp;<button class="linkbtn" id="pimport">import</button> &nbsp;<button class="linkbtn" id="pclear" style="color:var(--neg)">clear</button></span>
+        </div>
+        <textarea id="pjson" spellcheck="false" placeholder="Positions JSON &mdash; export to copy, paste &amp; import to load."></textarea>
+      </div>
+      <div class="panel">
+        <div class="ptitle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 17l5-6 4 4 6-8 3 4"/></svg>Mark-to-model preview <button class="hint" data-tip="mkinfo">?</button></div>
+        <div class="controls" style="margin-bottom:8px">
+          <div class="grp"><label>Mark date</label><input type="date" id="psell" value="2026-07-14" min="2026-06-06"></div>
+          <div class="grp"><label>Brent</label><input type="number" id="pbrent" value="120" min="40" max="400" step="1"></div>
+        </div>
+        <svg id="pchart" class="fig" viewBox="0 0 1000 470" role="img"></svg>
+        <div class="legend" id="plegend"></div>
+        <div id="pside" style="margin-top:10px"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="tab-sim" class="hidden">
+  <div class="scn" style="grid-template-columns:repeat(auto-fit,minmax(320px,1fr))">
+    <div class="panel">
+      <div class="ptitle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4.5"/><path d="M12 1v4M12 19v4M1 12h4M19 12h4"/></svg>Spike designer <button class="hint" data-tip="spinfo">?</button></div>
+      <div class="gridmini">
+        <div class="grp"><label>Peak Brent &mu; ($/bbl)</label><input type="number" id="pkmu" value="150" min="100" max="380" step="5"></div>
+        <div class="grp"><label>Peak 1&sigma; ($)</label><input type="number" id="pksig" value="15" min="0" max="80" step="1"></div>
+        <div class="grp"><label>Peak date &mu;</label><input type="date" id="pkdate" value="2026-09-15" min="2026-06-16" max="2027-04-30"></div>
+        <div class="grp"><label>Date uncertainty (&sigma; days)</label>
+          <select id="dsigsel"><option value="7">Tight &plusmn;1 wk</option><option value="21" selected>Base &plusmn;3 wk</option><option value="42">Loose &plusmn;6 wk</option><option value="c">Custom</option></select>
+          <input type="number" id="pkdsig" value="21" min="1" max="90" step="1" style="margin-top:5px">
+        </div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="ptitle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h10M4 18h6"/><circle cx="19" cy="16" r="3.2"/></svg>Tiered exit plan <span class="chip" id="tsum" style="margin-left:auto"></span> <button class="hint" data-tip="tinfo">?</button></div>
+      <div id="tiersbox"></div>
+      <div style="display:flex;gap:10px;margin-top:10px;align-items:center;flex-wrap:wrap">
+        <button class="linkbtn" id="tnorm">normalize to 100%</button>
+        <span style="color:var(--mut);font-size:10.5px">unfilled tiers sell into the crash day</span>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="ptitle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="6,4 20,12 6,20"/></svg>Run Monte Carlo <button class="hint" data-tip="mcinfo">?</button></div>
+      <div class="gridmini">
+        <div class="grp"><label>Crash-vol analog</label>
+          <select id="regsel">
+            <option value="comp" selected>Supply-shock composite</option>
+            <option value="r22">2022 Russia (OVX 47&rarr;100)</option>
+            <option value="gw90">1990 Gulf War</option>
+            <option value="ly11">2011 Libya (orderly)</option>
+          </select></div>
+        <div class="grp"><label>Trials</label>
+          <select id="mcn"><option>500</option><option selected>2000</option><option>5000</option><option>10000</option></select></div>
+        <div class="grp"><label>Seed</label>
+          <div class="costwrap"><input type="number" id="mcseed" value="0" style="width:110px"><button class="linkbtn" id="reroll">reroll</button></div></div>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center;margin-top:13px;flex-wrap:wrap">
+        <button class="btn primary" id="runmc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="6,4 20,12 6,20"/></svg>Run simulation</button>
+        <span class="chip" id="runinfo">not run yet</span>
+      </div>
+    </div>
+  </div>
+  <div class="panel" style="margin-bottom:14px">
+    <div class="ptitle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 19c4 0 6-13 10-13 3 0 4 6 8 6"/></svg>Scenario preview <span style="color:var(--mut);font-size:10px;letter-spacing:.4px;text-transform:none;margin-left:auto">ghost paths = sampled trials &middot; dashed ring = 1&sigma; peak cloud</span></div>
+    <svg id="spv" class="fig" viewBox="0 0 1100 430"></svg>
+  </div>
+  <div class="panel" id="respanel">
+    <div class="ptitle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20V9M10 20V4M16 20v-9M22 20H2"/></svg>Distribution of outcomes
+      <button class="btn" id="expng" style="margin-left:auto"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 19h16"/></svg>Export PNG</button></div>
+    <svg id="resfig" class="fig" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1240 780"></svg>
+    <div class="mcchips" id="mcchips"></div>
+  </div>
+</div>
+
+<div class="foot">Black&ndash;Scholes marks on the real 6/5/26 EODHD smiles &middot; puts via parity &middot; BNO = Brent/1.846 &times; e^(roll&middot;t) &middot; PoP risk-neutral on the base smile &middot; analysis, not advice.</div>
+</div>
+<div id="pop"></div>
+<div id="toast"></div>
+<script>
+const DATA={
+  spot:51.20, mult:94.5/51.2, brent0:94.5, dataDate:"2026-06-05",
+  order:["july","october","january"],
+  contracts:{
+    july:   {label:"Jul 17 '26", short:"Jul 17", expiry:"2026-07-17", r:0.0104,
+      iv:{50:0.6470,55:0.6905,60:0.7325,65:0.7678,70:0.8092,75:0.8412,80:0.8711,85:0.9043}},
+    october:{label:"Oct 16 '26", short:"Oct 16", expiry:"2026-10-16", r:0.0314,
+      iv:{50:0.6581,55:0.6725,60:0.6973,65:0.7203,70:0.7397,75:0.7606,80:0.7751,85:0.7912}},
+    january:{label:"Jan 15 '27", short:"Jan 15", expiry:"2027-01-15", r:0.0356,
+      iv:{50:0.5939,55:0.6122,60:0.6138,65:0.6349,70:0.6280,75:0.6519,80:0.6701,85:0.6805}},
+  }
+};
+const CURVE={pts:[["Jul '26",94.50],["Aug",93.30],["Sep",92.25],["Oct",91.35],["Nov",90.60],["Dec",90.00],["Jan '27",89.50],["Feb",89.10]]};
+CURVE.front=Math.log(CURVE.pts[0][1]/CURVE.pts[1][1])*12;
+CURVE.blend=Math.log(CURVE.pts[0][1]/CURVE.pts[6][1])*2;
+CURVE.def=Math.round(((CURVE.front+CURVE.blend)/2)*100)/100;
+const STRIKES=[50,55,60,65,70,75,80,85];
+const REG={
+  comp:{label:"Supply-shock composite",pb:1.9,pk:1.3,cc:0.78},
+  r22:{label:"2022 Russia",pb:2.1,pk:1.25,cc:0.75},
+  gw90:{label:"1990 Gulf War",pb:1.9,pk:1.4,cc:0.70},
+  ly11:{label:"2011 Libya",pb:1.5,pk:1.15,cc:0.85}};
+const $=id=>document.getElementById(id);
+const state={step:'build',mode:'single',view:'curves',ck:'october',shortck:'july',sell:'2026-07-14',
+  kBuy:60,kSell:75,addK:70,az:-0.9,el:0.52,hover:null,
+  ivMult:1,roll:CURVE.def,pSell:'2026-07-14',pBrent:120,
+  pk:{mu:150,sig:15,date:'2026-09-15',dsig:21},
+  tiers:[{on:1,pct:50,tgt:120},{on:1,pct:30,tgt:135},{on:1,pct:20,tgt:150}],
+  reg:'comp',mcN:2000,seed:Math.floor(Math.random()*1e6),lastRes:null};
+
+const pdate=s=>new Date(s+'T00:00:00Z');
+const days=(a,b)=>(pdate(b)-pdate(a))/86400000;
+const yrs=(a,b)=>Math.max(days(a,b),0)/365;
+const T0=c=>Math.max(days(DATA.dataDate,c.expiry),1)/365;
+const tau=(c,s)=>yrs(s,c.expiry);
+const ctr=k=>DATA.contracts[k||state.ck];
+const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
+function addDays(iso,n){const d=pdate(iso);d.setUTCDate(d.getUTCDate()+n);return d.toISOString().slice(0,10);}
+
+function erf(x){const s=x<0?-1:1;x=Math.abs(x);const t=1/(1+0.3275911*x);
+  const y=1-(((((1.061405429*t-1.453152027)*t)+1.421413741)*t-0.284496736)*t+0.254829592)*t*Math.exp(-x*x);return s*y;}
+const ncdf=z=>0.5*(1+erf(z/Math.SQRT2));
+function bsCall(S,K,sig,t,r){if(t<=1e-9)return Math.max(S-K,0);
+  const st=sig*Math.sqrt(t),d1=(Math.log(S/K)+(r+0.5*sig*sig)*t)/st;
+  return S*ncdf(d1)-K*Math.exp(-r*t)*ncdf(d1-st);}
+const bsPut=(S,K,sig,t,r)=> t<=1e-9?Math.max(K-S,0):bsCall(S,K,sig,t,r)-S+K*Math.exp(-r*t);
+const ivAt=(c,k)=>{if(c.iv[k]!=null)return c.iv[k];const ks=STRIKES;let lo=ks[0],hi=ks[ks.length-1];
+  for(let i=0;i<ks.length-1;i++)if(k>=ks[i]&&k<=ks[i+1]){lo=ks[i];hi=ks[i+1];break;}
+  const f=(k-lo)/(hi-lo||1);return Math.max(0.05,c.iv[lo]+(c.iv[hi]-c.iv[lo])*f);};
+let HLD=0;
+const bToS=b=>b/DATA.mult*Math.exp(state.roll*HLD);
+const sToB=s=>s*DATA.mult*Math.exp(-state.roll*HLD);
+const cPrem=(c,K)=>bsCall(DATA.spot,K,c.iv[K],T0(c),c.r);
+const pPrem=(c,K)=>bsPut(DATA.spot,K,c.iv[K],T0(c),c.r);
+const cVal=(c,K,S)=>bsCall(S,K,c.iv[K]*state.ivMult,tau(c,state.sell),c.r);
+const pVal=(c,K,S)=>bsPut(S,K,c.iv[K]*state.ivMult,tau(c,state.sell),c.r);
+function solve(fn,lo,hi){let a=lo,b=hi,fa=fn(a),fb=fn(b);if(fa===0)return a;if(fb===0)return b;if(fa*fb>0)return NaN;
+  for(let i=0;i<90;i++){const m=0.5*(a+b),fm=fn(m);if(fm*fa<=0){b=m;fb=fm;}else{a=m;fa=fm;}}return 0.5*(a+b);}
+function popUp(beS,sig,h,r){if(h<=1e-6||isNaN(beS))return NaN;
+  return 1-ncdf((Math.log(beS/DATA.spot)-(r-0.5*sig*sig)*h)/(sig*Math.sqrt(h)));}
+function popRegion(plFn,h,sig,r){if(h<=1e-6)return NaN;const N=600,lo=DATA.spot*Math.exp(-6*sig*Math.sqrt(h)),
+  hi=DATA.spot*Math.exp(6*sig*Math.sqrt(h));let P=0;const cdf=s=>ncdf((Math.log(s/DATA.spot)-(r-0.5*sig*sig)*h)/(sig*Math.sqrt(h)));
+  for(let i=0;i<N;i++){const s0=lo*Math.pow(hi/lo,i/N),s1=lo*Math.pow(hi/lo,(i+1)/N);
+    if(plFn(0.5*(s0+s1))>0)P+=cdf(s1)-cdf(s0);}return P;}
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+function gaussOf(rng){let u=0,v=0;while(!u)u=rng();while(!v)v=rng();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);}
+
+const TSTOPS=[[0,[51,51,153]],[0.15,[0,153,255]],[0.25,[0,204,102]],[0.5,[255,255,153]],[0.75,[128,92,84]],[1,[255,255,255]]];
+function terrainRGB(t){t=Math.max(0,Math.min(1,t));for(let i=1;i<TSTOPS.length;i++){if(t<=TSTOPS[i][0]){
+  const[a,ca]=TSTOPS[i-1],[b,cb]=TSTOPS[i],f=(t-a)/(b-a);return ca.map((v,k)=>v+(cb[k]-v)*f);}}return[255,255,255];}
+const terrain=t=>`rgb(${terrainRGB(t).map(Math.round).join(',')})`;
+const strikeColor=k=>terrain(0.1+0.82*(STRIKES.indexOf(k))/(STRIKES.length-1));
+function seaT(z,zmin,zmax){if(zmax<=zmin)return 0.5;const f=Math.max(0,Math.min(1,(0-zmin)/(zmax-zmin)));
+  const u=(z-zmin)/(zmax-zmin);return u<=f?(f<=0?0.23:0.23*u/f):0.23+0.77*Math.pow((u-f)/(1-f||1),0.72);}
+
+const fmtP=x=>isNaN(x)?'\u2014':`${x>=0?'+':'\u2212'}${Math.abs(x).toFixed(0)}%`;
+const fmtPp=x=>isNaN(x)?'\u2014':`${x.toFixed(0)}%`;
+const fmtU=x=>`${x<0?'\u2212$':'$'}${Math.abs(x).toFixed(2)}`;
+const fmtK=x=>isNaN(x)?'\u2014':`${x>=0?'+':'\u2212'}$${Math.abs(Math.round(x)).toLocaleString()}`;
+const fmtKa=x=>`${x<0?'\u2212':''}$${Math.abs(x)>=1000?(Math.abs(x)/1000).toFixed(Math.abs(x)>=10000?0:1)+'k':Math.round(Math.abs(x))}`;
+const fmtB=x=>isNaN(x)?'\u2014':`$${x.toFixed(0)}`;
+const esc=s=>(''+s).replace(/&/g,'&amp;').replace(/</g,'&lt;');
+
+const TIPS={
+  ivinfo:`<b>Exit volatility regime.</b> Scales the whole 6/5 smile when positions are <b>marked at the sell date</b> &mdash; entry cost always stays at the real 6/5 mids. Presets are stylized from oil-vol history: OVX ran ~47&rarr;~100 into the Mar '22 invasion then roughly halved by summer; implied vol collapsed when Desert Storm opened in Jan '91. Effective Oct ATM IV shown live above. The Monte Carlo ignores this slider and uses its own distance-to-peak vol model.`,
+  rollinfo:()=>{let t=`<b>Roll yield from the term structure.</b> BNO holds front-month Brent; rolling down a backwardated curve harvests carry, contango bleeds it. Default <b>${(CURVE.def*100).toFixed(0)}%/yr</b> is computed from the est. 6/5 strip (front spread ${(CURVE.front*100).toFixed(1)}%/yr, 6-mo blend ${(CURVE.blend*100).toFixed(1)}%/yr, averaged). Mapping: BNO = Brent/1.846 &times; e^(roll&middot;t). Bars below show the monthly BNO impact of your setting vs the curve default.<table><tr><th>Month</th><th>$/bbl</th></tr>`;
+    CURVE.pts.forEach(p=>t+=`<tr><td>${p[0]}</td><td>$${p[1].toFixed(2)}</td></tr>`);return t+`</table>`;},
+  labinfo:`<b>Strategy lab.</b> Configure a structure on the real chains, read PoP and breakevens, then push it into the portfolio with the lots you want. Curves are marked at the sell date with remaining time value; the 3D surface maps return across strike &times; Brent. PoP is risk-neutral on the base smile and doesn't move with the vol slider. The diagonal's back-month leg is the most model-sensitive number here (sticky-by-strike assumption).`,
+  pfinfo:`<b>Portfolio.</b> Legs added from the lab arrive at modeled 6/5 mids &mdash; overwrite cost basis with your real fills. Options &times;100, shares 1:1 on BNO. Saved in this browser; export/import JSON to move books between devices.`,
+  mkinfo:`<b>Mark-to-model preview.</b> The whole book repriced at one Brent level and date with the current vol-regime and roll settings. Greeks are finite-difference at that point: delta $/$1 Brent, vega $/+1 vol pt, theta $/day.`,
+  spinfo:`<b>Spike designer.</b> The blow-off is modeled as an accelerating run (parabolic, exponent 2.2) from $94.50 to a sampled peak, with ~1.2%/day noise. Peak price ~ N(&mu;,&sigma;) and peak date ~ N(&mu;,&sigma;<sub>t</sub>), sampled independently per trial. The day after the peak prints a single-session crash drawn uniformly from &minus;20% to &minus;30%, with sign-aware vol (puts bid, call vol deflates).`,
+  tinfo:`<b>Tiered exits.</b> Each tier sells its % of <i>every</i> leg the first day Brent touches its target on the run-up. Tiers the path never reaches are liquidated on the crash day at the crashed print. Percentages across enabled tiers must total 100. Tier 1 is always on.`,
+  mcinfo:`<b>Monte Carlo.</b> Per trial: sample peak + date, walk the noisy parabola, fill tiers, value every leg with Black&ndash;Scholes at its exit. IV scales with distance to the top (1&times; at spot rising to the analog's peak boost, exponent 1.5), crash-day vol is sign-aware (put kick vs call deflate). Legs that expire before their exit freeze at intrinsic on their own expiry date. Roll yield applies along the path; the manual vol slider does not. Seeded and fully reproducible.`};
+
+let popOn=null;
+document.addEventListener('click',e=>{
+  const h=e.target.closest('.hint');const pop=$('pop');
+  if(h){const key=h.dataset.tip;if(popOn===h){pop.style.display='none';popOn=null;return;}
+    const tip=TIPS[key];pop.innerHTML=typeof tip==='function'?tip():tip;pop.style.display='block';
+    const r=h.getBoundingClientRect(),pw=Math.min(340,window.innerWidth-20);pop.style.maxWidth=pw+'px';
+    const ph=pop.offsetHeight;let x=clamp(r.left-pw/2,10,Math.max(10,window.innerWidth-pw-10)),y=r.bottom+8;
+    if(y+ph>window.innerHeight-10)y=Math.max(10,r.top-ph-8);
+    pop.style.left=x+'px';pop.style.top=y+'px';popOn=h;e.stopPropagation();return;}
+  if(!e.target.closest('#pop')){$('pop').style.display='none';popOn=null;}
+});
+let toastT=0;
+function toast(msg){const t=$('toast');t.textContent=msg;t.classList.add('show');clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove('show'),1900);}
+
+const SHAPES={single:{name:'Long call',pts:[[0,-1],[0.45,-1],[1,1.5]]},
+  calldebit:{name:'Bull call spread',pts:[[0,-1],[0.33,-1],[0.64,0.95],[1,0.95]]},
+  putcredit:{name:'Bull put spread',pts:[[0,-1],[0.36,-1],[0.62,0.55],[1,0.55]]},
+  diagonal:{name:'Call diagonal',pts:[[0,-0.95],[0.3,-0.55],[0.56,0.95],[0.78,0.55],[1,0.3]]}};
+function thumb(pts){const W=140,H=42,mid=H*0.52,sc=H*0.36;
+  const P=pts.map(p=>[p[0]*W,mid-p[1]*sc]);
+  const segs=[];
+  for(let i=1;i<P.length;i++){const a=P[i-1],b=P[i],va=pts[i-1][1],vb=pts[i][1];
+    if((va<0)!==(vb<0)){const f=-va/(vb-va),xm=a[0]+(b[0]-a[0])*f,ym=mid;
+      segs.push([a,[xm,ym],va<0]);segs.push([[xm,ym],b,vb<0]);}
+    else segs.push([a,b,(va+vb)/2<0]);}
+  let g=`<line x1="0" y1="${mid}" x2="${W}" y2="${mid}" stroke="rgba(255,255,255,.16)" stroke-width="1"/>`;
+  segs.forEach(s=>{g+=`<line x1="${s[0][0].toFixed(1)}" y1="${s[0][1].toFixed(1)}" x2="${s[1][0].toFixed(1)}" y2="${s[1][1].toFixed(1)}" stroke="${s[2]?'#e07a6a':'#69d2a0'}" stroke-width="2.4" stroke-linecap="round"/>`;});
+  return `<svg viewBox="0 0 ${W} ${H}">${g}</svg>`;}
+function buildStratCards(){
+  $('stratcards').innerHTML=Object.entries(SHAPES).map(([m,s])=>
+    `<button class="scard${m===state.mode?' on':''}" data-m="${m}">${thumb(s.pts)}<span>${s.name}</span></button>`).join('');}
+
+function winLo(){return 95;}
+function winHi(){return Math.max(140,Math.ceil((state.pk.mu+1.6*state.pk.sig)/5)*5);}
+const M={l:62,r:18,t:26,b:56},VW=1000,VH=560,PW=VW-M.l-M.r,PH=VH-M.t-M.b;
+function niceTicks(lo,hi,n){const span=hi-lo||1,raw=span/n,mag=Math.pow(10,Math.floor(Math.log10(raw))),
+  nm=raw/mag,step=(nm<1.5?1:nm<3?2:nm<7?5:10)*mag,t=[];
+  for(let v=Math.ceil(lo/step)*step;v<=hi+1e-9;v+=step)t.push(+v.toFixed(6));return t;}
+function axesXY(g,xlo,xhi,ylo,yhi,X,Y,ph,ylabel,yfmt){
+  const xt=niceTicks(xlo,xhi,7),yt=niceTicks(ylo,yhi,6);
+  yt.forEach(v=>{const y=Y(v).toFixed(1);g.s+=`<line x1="${M.l}" y1="${y}" x2="${M.l+PW}" y2="${y}" stroke="#fff" stroke-opacity="${v===0?0.28:0.07}" stroke-width="${v===0?1.3:0.8}"/><text x="${M.l-9}" y="${+y+4}" fill="#9aa1aa" font-size="11" text-anchor="end">${yfmt(v)}</text>`;});
+  xt.forEach(v=>{const x=X(v).toFixed(1),mv=(v/DATA.brent0-1)*100;g.s+=`<line x1="${x}" y1="${M.t}" x2="${x}" y2="${M.t+ph}" stroke="#fff" stroke-opacity="0.06" stroke-width="0.8"/><text x="${x}" y="${M.t+ph+18}" fill="#9aa1aa" font-size="11" text-anchor="middle">$${v.toFixed(0)}</text><text x="${x}" y="${M.t+ph+31}" fill="#6b727b" font-size="9" text-anchor="middle">${mv>=0?'+':''}${mv.toFixed(0)}%</text>`;});
+  g.s+=`<text x="${M.l+PW/2}" y="${M.t+ph+47}" fill="#8b939d" font-size="11" text-anchor="middle" letter-spacing="1.4">BRENT AT SELL DATE  ($/bbl \u00b7 \u0394 vs spot)</text><text transform="translate(15,${M.t+ph/2}) rotate(-90)" fill="#8b939d" font-size="11" text-anchor="middle" letter-spacing="1.1">${ylabel}</text>`;}
+
+function compute(){
+  const c=ctr();
+  HLD=(state.mode==='diagonal')?yrs(DATA.dataDate,ctr(state.shortck).expiry):yrs(DATA.dataDate,state.sell);
+  const bMin=winLo(),bMax=winHi();state.bMin=bMin;state.bMax=bMax;
+  const brents=n=>Array.from({length:n+1},(_,i)=>bMin+(bMax-bMin)*i/n);
+  const m=state.mode;
+  if(m==='single'){
+    const B=brents(180),series=STRIKES.map(k=>({k,color:strikeColor(k),
+      pts:B.map(b=>[b,100*(cVal(c,k,bToS(b))/cPrem(c,k)-1)])}));
+    const all=series.flatMap(s=>s.pts.map(p=>p[1]));
+    return{kind:'single',series,ylo:Math.min(...all),yhi:Math.max(...all)};
+  }
+  if(m==='calldebit'){
+    const kb=state.kBuy,ks=state.kSell,w=ks-kb,deb=cPrem(c,kb)-cPrem(c,ks),B=brents(220);
+    const exp=B.map(b=>{const s=bToS(b);return[b,100*((Math.min(Math.max(s-kb,0),w)-deb)/deb)];});
+    const sell=B.map(b=>{const s=bToS(b);return[b,100*((cVal(c,kb,s)-cVal(c,ks,s)-deb)/deb)];});
+    const cap=(w-deb)/deb*100,shortB=sToB(ks);
+    const beExp=sToB(kb+deb), beSell=sToB(solve(s=>cVal(c,kb,s)-cVal(c,ks,s)-deb,.01,400));
+    return{kind:'spread',w,deb,cap,shortB,kb,ks,credit:false,
+      series:[{label:'At expiration',color:terrain(0.62),pts:exp,width:3},
+              {label:'If sold on sell date',color:terrain(0.2),pts:sell,width:2.4,dash:'7 5'}],
+      bands:[[bMin,Math.min(shortB,bMax),terrain(0.27)],[Math.max(shortB,bMin),bMax,terrain(0.66)]],
+      markers:[['v',shortB,`short K${ks} ITM`],['cap',cap]],
+      ylo:Math.min(-100,...sell.map(p=>p[1])),yhi:Math.max(cap,...exp.map(p=>p[1]),...sell.map(p=>p[1])),
+      stats:{type:'calldebit',w,deb,cap,beExp,beSell,kb,ks,
+        popExp:popUp(kb+deb,c.iv[kb],T0(c),c.r)*100,popSell:popUp(bToS(beSell),c.iv[kb],HLD,c.r)*100}};
+  }
+  if(m==='putcredit'){
+    const kb=state.kBuy,ks=state.kSell,w=ks-kb,cr=pPrem(c,ks)-pPrem(c,kb),capital=w-cr,B=brents(220);
+    const exp=B.map(b=>{const s=bToS(b);return[b,100*((cr-Math.max(ks-s,0)+Math.max(kb-s,0))/capital)];});
+    const sell=B.map(b=>{const s=bToS(b);return[b,100*((cr-(pVal(c,ks,s)-pVal(c,kb,s)))/capital)];});
+    const cap=cr/capital*100,shortB=sToB(ks);
+    const beExp=sToB(ks-cr), beSell=sToB(solve(s=>(cr-(pVal(c,ks,s)-pVal(c,kb,s))),.01,400));
+    return{kind:'spread',w,deb:cr,cap,shortB,kb,ks,credit:true,
+      series:[{label:'At expiration',color:terrain(0.62),pts:exp,width:3},
+              {label:'If closed on sell date',color:terrain(0.2),pts:sell,width:2.4,dash:'7 5'}],
+      bands:[[bMin,Math.min(shortB,bMax),terrain(0.66)],[Math.max(shortB,bMin),bMax,terrain(0.27)]],
+      markers:[['v',shortB,`short put K${ks}`],['cap',cap]],
+      ylo:Math.min(-100,...sell.map(p=>p[1])),yhi:Math.max(cap,...exp.map(p=>p[1]),...sell.map(p=>p[1]))+4,
+      stats:{type:'putcredit',w,credit:cr,capital,cap,beExp,beSell,kb,ks,
+        popExp:popUp(ks-cr,c.iv[ks],T0(c),c.r)*100,popSell:popUp(bToS(beSell),c.iv[ks],HLD,c.r)*100}};
+  }
+  if(m==='diagonal'){
+    const cl=ctr(state.ck),cs=ctr(state.shortck),kb=state.kBuy,ks=state.kSell;
+    const rem=Math.max(T0(cl)-T0(cs),1/365),hS=T0(cs);
+    const deb=cPrem(cl,kb)-cPrem(cs,ks),B=brents(220);
+    const lv=s=>bsCall(s,kb,cl.iv[kb]*state.ivMult,rem,cl.r);
+    const val=B.map(b=>{const s=bToS(b);return[b,100*((lv(s)-Math.max(s-ks,0)-deb)/deb)];});
+    const shortB=sToB(ks);
+    const plFn=s=>lv(s)-Math.max(s-ks,0)-deb;
+    let bes=[];const slo=5,shi=400,steps=400;let prev=plFn(slo);
+    for(let i=1;i<=steps;i++){const s=slo+(shi-slo)*i/steps,cur=plFn(s);
+      if((prev<0)!==(cur<0))bes.push(sToB(solve(plFn,slo+(shi-slo)*(i-1)/steps,s)));prev=cur;}
+    const sig=cs.iv[50],pop=popRegion(plFn,hS,sig,cs.r)*100;
+    const ys=val.map(p=>p[1]);
+    return{kind:'diag',deb,shortB,kb,ks,
+      series:[{label:`Value at short expiry (${cs.short})`,color:terrain(0.62),pts:val,width:3}],
+      bands:[[bMin,Math.min(shortB,bMax),terrain(0.27)],[Math.max(shortB,bMin),bMax,terrain(0.66)]],
+      markers:[['v',shortB,`short K${ks} (${cs.short})`]],
+      ylo:Math.min(-100,...ys),yhi:Math.max(...ys)+6,
+      stats:{type:'diagonal',deb,kb,ks,cl,cs,rem,bes,pop,
+        peak:Math.max(...ys),peakB:val[ys.indexOf(Math.max(...ys))][0]}};
+  }
+}
+
+function draw(){
+  if(state.step!=='build')return;
+  if(state.mode==='single'&&state.view==='surface'){drawSurface();return;}
+  const spec=compute(),c=ctr();
+  const xlo=state.bMin,xhi=state.bMax,X=b=>M.l+(b-xlo)/(xhi-xlo)*PW;
+  let{ylo,yhi}=spec;const pad=(yhi-ylo)*0.08||10;yhi+=pad;ylo-=pad*0.5;
+  if(spec.kind==='single')ylo=Math.max(ylo,-105);
+  const Y=v=>M.t+(yhi-v)/(yhi-ylo)*PH;
+  const g={s:`<rect width="${VW}" height="${VH}" fill="#101218" rx="8"/><rect x="${M.l}" y="${M.t}" width="${PW}" height="${PH}" fill="#0c0e13" stroke="#262a33"/>`};
+  (spec.bands||[]).forEach(([x0,x1,fill])=>{if(x1>x0)g.s+=`<rect x="${X(x0).toFixed(1)}" y="${M.t}" width="${(X(x1)-X(x0)).toFixed(1)}" height="${PH}" fill="${fill}" opacity="0.06"/>`;});
+  axesXY(g,xlo,xhi,ylo,yhi,X,Y,PH,'RETURN ON CAPITAL',v=>`${v>0?'+':''}${v.toFixed(0)}%`);
+  (spec.markers||[]).forEach(mk=>{if(mk[0]==='v'&&mk[1]>=xlo&&mk[1]<=xhi){const x=X(mk[1]).toFixed(1);
+    g.s+=`<line x1="${x}" y1="${M.t}" x2="${x}" y2="${M.t+PH}" stroke="#fff" stroke-opacity="0.5" stroke-dasharray="3 4" stroke-width="1"/><text x="${x}" y="${M.t+12}" fill="#fff" font-size="10.5" text-anchor="middle">${esc(mk[2])}</text>`;}
+    if(mk[0]==='cap'){const y=Y(mk[1]).toFixed(1);g.s+=`<line x1="${M.l}" y1="${y}" x2="${M.l+PW}" y2="${y}" stroke="${terrain(0.62)}" stroke-dasharray="2 5" stroke-width="1" opacity="0.8"/>`;}});
+  spec.series.forEach(s=>{const d=s.pts.map((p,i)=>`${i?'L':'M'}${X(p[0]).toFixed(1)} ${Y(p[1]).toFixed(1)}`).join(' ');
+    g.s+=`<path d="${d}" fill="none" stroke="${s.color}" stroke-width="${s.width||2}" ${s.dash?`stroke-dasharray="${s.dash}"`:''} stroke-linejoin="round" opacity="0.96"/>`;
+    if(spec.kind==='single'){const last=s.pts[s.pts.length-1];g.s+=`<text x="${(X(last[0])+4).toFixed(1)}" y="${(Y(last[1])+3).toFixed(1)}" fill="${s.color}" font-size="10.5">${s.k}</text>`;}});
+  spec.series.forEach(s=>{for(let i=1;i<s.pts.length;i++){const a=s.pts[i-1],b=s.pts[i];
+    if((a[1]<0)!==(b[1]<0)){const f=-a[1]/(b[1]-a[1]);g.s+=`<circle cx="${X(a[0]+(b[0]-a[0])*f).toFixed(1)}" cy="${Y(0).toFixed(1)}" r="3" fill="${s.color}" stroke="#0c0e13" stroke-width="0.6"/>`;if(spec.kind==='single')break;}}});
+  if(state.hover!=null&&state.hover>=xlo&&state.hover<=xhi){const hx=X(state.hover).toFixed(1);g.s+=`<line x1="${hx}" y1="${M.t}" x2="${hx}" y2="${M.t+PH}" stroke="#fff" stroke-opacity="0.35" stroke-width="1"/>`;}
+  $('chart').innerHTML=g.s+`<rect id="ov" x="${M.l}" y="${M.t}" width="${PW}" height="${PH}" fill="transparent"/>`;
+  bindHover('ov','chart',xlo,xhi,h=>{state.hover=h;draw();});
+  renderLegend(spec);renderSide(spec,c);renderLabChips(c,spec);updateAddLbl();
+}
+function bindHover(ovid,svgid,xlo,xhi,set){const ov=$(ovid),svg=$(svgid);if(!ov)return;
+  ov.onmousemove=e=>{const r=svg.getBoundingClientRect();set(Math.max(xlo,Math.min(xhi,xlo+((e.clientX-r.left)/r.width*VW-M.l)/PW*(xhi-xlo))));};
+  ov.onmouseleave=()=>set(null);}
+
+function drawSurface(){
+  const c=ctr(),NX=28,NY=30,Ks=[],Bs=[];HLD=yrs(DATA.dataDate,state.sell);
+  const bMin=winLo(),bMax=winHi();state.bMin=bMin;state.bMax=bMax;
+  for(let i=0;i<=NX;i++)Ks.push(50+35*i/NX);
+  for(let j=0;j<=NY;j++)Bs.push(bMin+(bMax-bMin)*j/NY);
+  const prem=Ks.map(k=>bsCall(DATA.spot,k,ivAt(c,k),T0(c),c.r));
+  const Z=Bs.map(b=>Ks.map((k,i)=>100*(bsCall(bToS(b),k,ivAt(c,k)*state.ivMult,tau(c,state.sell),c.r)/prem[i]-1)));
+  let zmin=1e9,zmax=-1e9;Z.forEach(r=>r.forEach(v=>{zmin=Math.min(zmin,v);zmax=Math.max(zmax,v);}));
+  const ZEX=0.72;
+  const nrm=(k,b,z)=>[((k-50)/35-0.5),((b-bMin)/(bMax-bMin)-0.5),((z-zmin)/((zmax-zmin)||1)-0.5)*ZEX];
+  const cT=Math.cos(state.az),sT=Math.sin(state.az),cP=Math.cos(state.el),sP=Math.sin(state.el);
+  const proj=p=>{const x=p[0],y=p[1],z=p[2],h=x*cT+y*sT;return{x:-x*sT+y*cT,y:-h*sP+z*cP,depth:h*cP+z*sP};};
+  const verts=Bs.map(b=>Ks.map(k=>proj(nrm(k,b,0))));
+  const vsurf=Bs.map((b,j)=>Ks.map((k,i)=>proj(nrm(k,b,Z[j][i]))));
+  let minx=1e9,maxx=-1e9,miny=1e9,maxy=-1e9;
+  const scan=v=>{minx=Math.min(minx,v.x);maxx=Math.max(maxx,v.x);miny=Math.min(miny,v.y);maxy=Math.max(maxy,v.y);};
+  vsurf.flat().forEach(scan);verts.flat().forEach(scan);
+  const pad=46,plw=VW-2*pad-70,plh=VH-2*pad-20;
+  const sc=Math.min(plw/(maxx-minx),plh/(maxy-miny));
+  const ox=pad+(plw-(maxx-minx)*sc)/2-minx*sc, oy=pad+(plh+(maxy-miny)*sc)/2+miny*sc;
+  const SX=v=>ox+v.x*sc, SY=v=>oy-v.y*sc;
+  const Ld=(()=>{const v=[-0.5,-0.55,0.75],n=Math.hypot(...v);return v.map(x=>x/n);})();
+  function faceColor(i,j){const z=(Z[j][i]+Z[j][i+1]+Z[j+1][i]+Z[j+1][i+1])/4;
+    const a=nrm(Ks[i],Bs[j],Z[j][i]),b=nrm(Ks[i+1],Bs[j],Z[j][i+1]),d=nrm(Ks[i],Bs[j+1],Z[j+1][i]);
+    const u=[b[0]-a[0],b[1]-a[1],b[2]-a[2]],w=[d[0]-a[0],d[1]-a[1],d[2]-a[2]];
+    let n=[u[1]*w[2]-u[2]*w[1],u[2]*w[0]-u[0]*w[2],u[0]*w[1]-u[1]*w[0]];const nl=Math.hypot(...n)||1;n=n.map(x=>x/nl);
+    const br=Math.max(0,Math.abs(n[0]*Ld[0]+n[1]*Ld[1]+n[2]*Ld[2]));const f=0.62+0.55*br;
+    const rgb=terrainRGB(seaT(z,zmin,zmax)).map(x=>Math.max(0,Math.min(255,Math.round(x*f))));
+    return`rgb(${rgb.join(',')})`;}
+  const faces=[];
+  for(let j=0;j<NY;j++)for(let i=0;i<NX;i++){
+    const q=[vsurf[j][i],vsurf[j][i+1],vsurf[j+1][i+1],vsurf[j+1][i]];
+    faces.push({d:(q[0].depth+q[1].depth+q[2].depth+q[3].depth)/4,
+      p:q.map(v=>`${SX(v).toFixed(1)},${SY(v).toFixed(1)}`).join(' '),c:faceColor(i,j)});}
+  faces.sort((a,b)=>b.d-a.d);
+  let g=`<rect width="${VW}" height="${VH}" fill="#101218" rx="8"/>`;
+  const fl=[];
+  for(let i=0;i<=NX;i+=4){const pa=verts[0][i],pb=verts[NY][i];fl.push(`<line x1="${SX(pa).toFixed(1)}" y1="${SY(pa).toFixed(1)}" x2="${SX(pb).toFixed(1)}" y2="${SY(pb).toFixed(1)}" stroke="#fff" stroke-opacity="0.05"/>`);}
+  for(let j=0;j<=NY;j+=5){const pa=verts[j][0],pb=verts[j][NX];fl.push(`<line x1="${SX(pa).toFixed(1)}" y1="${SY(pa).toFixed(1)}" x2="${SX(pb).toFixed(1)}" y2="${SY(pb).toFixed(1)}" stroke="#fff" stroke-opacity="0.05"/>`);}
+  g+=fl.join('');
+  g+=faces.map(f=>`<polygon points="${f.p}" fill="${f.c}" stroke="${f.c}" stroke-width="0.4"/>`).join('');
+  const coast=[],ridge=[];
+  for(let i=0;i<=NX;i++){for(let j=0;j<NY;j++){if((Z[j][i]<0)!==(Z[j+1][i]<0)){
+    const f=-Z[j][i]/(Z[j+1][i]-Z[j][i]),b=Bs[j]+(Bs[j+1]-Bs[j])*f,v=proj(nrm(Ks[i],b,0));coast.push([SX(v),SY(v)]);break;}}}
+  for(let j=0;j<=NY;j++){let bi=0;for(let i=1;i<=NX;i++)if(Z[j][i]>Z[j][bi])bi=i;
+    const v=proj(nrm(Ks[bi],Bs[j],Z[j][bi]));ridge.push([SX(v),SY(v)]);}
+  if(coast.length>1)g+=`<polyline points="${coast.map(p=>p[0].toFixed(1)+','+p[1].toFixed(1)).join(' ')}" fill="none" stroke="${terrain(0.55)}" stroke-width="2.6"/>`;
+  g+=`<polyline points="${ridge.map(p=>p[0].toFixed(1)+','+p[1].toFixed(1)).join(' ')}" fill="none" stroke="#fff" stroke-width="2.6"/>`;
+  STRIKES.forEach(k=>{const v=proj(nrm(k,bMin,0));g+=`<text x="${SX(v).toFixed(1)}" y="${(SY(v)+16).toFixed(1)}" fill="#aab" font-size="11" text-anchor="middle">${k}</text>`;});
+  niceTicks(bMin,bMax,5).forEach(b=>{if(b<bMin||b>bMax)return;const v=proj(nrm(85,b,0));
+    g+=`<text x="${(SX(v)+8).toFixed(1)}" y="${(SY(v)+4).toFixed(1)}" fill="#aab" font-size="10.5" text-anchor="start">$${b.toFixed(0)}</text>`;});
+  niceTicks(zmin,zmax,5).forEach(z=>{const v=proj(nrm(50,bMin,z));g+=`<text x="${(SX(v)-8).toFixed(1)}" y="${(SY(v)+4).toFixed(1)}" fill="#aab" font-size="10.5" text-anchor="end">${z>0?'+':''}${z.toFixed(0)}%</text>`;});
+  const lblK=proj(nrm(67,bMin,0)),lblB=proj(nrm(85,(bMin+bMax)/2,0));
+  g+=`<text x="${SX(lblK).toFixed(1)}" y="${(SY(lblK)+33).toFixed(1)}" fill="#8b939d" font-size="11" text-anchor="middle" letter-spacing="1">STRIKE ($)</text>`;
+  g+=`<text x="${(SX(lblB)+44).toFixed(1)}" y="${(SY(lblB)+18).toFixed(1)}" fill="#8b939d" font-size="11" text-anchor="middle" letter-spacing="1">BRENT ($/bbl)</text>`;
+  const cbx=VW-30,cby0=70,cbh=300,STEPS=60;
+  for(let s=0;s<STEPS;s++){const z=zmin+(zmax-zmin)*s/STEPS,y=cby0+cbh*(1-s/STEPS);
+    g+=`<rect x="${cbx}" y="${(y-cbh/STEPS).toFixed(1)}" width="14" height="${(cbh/STEPS+1).toFixed(1)}" fill="${terrain(seaT(z,zmin,zmax))}"/>`;}
+  const zeroY=cby0+cbh*(1-(0-zmin)/((zmax-zmin)||1));
+  g+=`<line x1="${cbx-2}" y1="${zeroY.toFixed(1)}" x2="${cbx+16}" y2="${zeroY.toFixed(1)}" stroke="#fff" stroke-width="1.4"/><text x="${cbx-4}" y="${(zeroY+4).toFixed(1)}" fill="#eef1f4" font-size="10" text-anchor="end">0</text>`;
+  g+=`<text x="${cbx+7}" y="${cby0-8}" fill="#9aa1aa" font-size="10" text-anchor="middle">+${zmax.toFixed(0)}%</text><text x="${cbx+7}" y="${cby0+cbh+16}" fill="#9aa1aa" font-size="10" text-anchor="middle">${zmin.toFixed(0)}%</text>`;
+  g+=`<text x="${M.l}" y="22" fill="#8b939d" font-size="11">RETURN ON $10k \u00b7 ${c.label} \u00b7 sell ${state.sell} \u00b7 white ridge = best strike \u00b7 drag to rotate</text>`;
+  $('chart').innerHTML=g+`<rect id="ov3" width="${VW}" height="${VH}" fill="transparent" style="cursor:grab"/>`;
+  bindRotate();renderLegend({kind:'surface'});renderSide({kind:'surface'},c);renderLabChips(c,{kind:'surface'});updateAddLbl();
+}
+function bindRotate(){const ov=$('ov3');let drag=null,raf=0;
+  const pt=e=>{const t=e.touches?e.touches[0]:e;return{x:t.clientX,y:t.clientY};};
+  const down=e=>{drag=pt(e);ov.style.cursor='grabbing';e.preventDefault();};
+  const move=e=>{if(!drag)return;const p=pt(e);state.az+=(p.x-drag.x)*0.008;state.el=Math.max(0.08,Math.min(1.2,state.el-(p.y-drag.y)*0.006));drag=p;
+    if(!raf)raf=requestAnimationFrame(()=>{raf=0;drawSurface();});e.preventDefault();};
+  const up=()=>{drag=null;ov.style.cursor='grab';};
+  ov.onmousedown=down;window.addEventListener('mousemove',move);window.addEventListener('mouseup',up);
+  ov.ontouchstart=down;ov.ontouchmove=move;ov.ontouchend=up;}
+
+function renderLegend(spec){
+  if(spec.kind==='single')$('legend').innerHTML=`<span style="color:var(--mut)">strike low\u2192high:</span>`+STRIKES.map(k=>`<span><i style="background:${strikeColor(k)}"></i>${k}</span>`).join('')+`<span style="color:var(--mut)">&middot; dot = breakeven</span>`;
+  else if(spec.kind==='surface')$('legend').innerHTML=`<span style="color:var(--mut)">color = return (sea level = breakeven)</span><span><i style="background:#fff"></i>optimal-strike ridge</span><span><i style="background:${terrain(0.55)}"></i>breakeven coastline</span>`;
+  else $('legend').innerHTML=(spec.series||[]).map(s=>`<span><i style="background:${s.color};${s.dash?'height:0;border-top:3px dashed '+s.color:''}"></i>${esc(s.label)}</span>`).join('')+`<span style="color:var(--mut)">&middot; split at short strike</span>`;}
+function chip(k,v,cls){return `<span class="chip ${cls||''}">${k} <b>${v}</b></span>`;}
+function renderLabChips(c,spec){
+  let h='';
+  if(state.mode==='diagonal'){const cs=ctr(state.shortck);
+    h=chip('Long',c.short)+chip('Short',cs.short)+chip('Eval at',cs.expiry)+chip('Long left after',Math.round(days(cs.expiry,c.expiry))+'d');}
+  else h=chip('Contract',c.label)+chip('Sell',state.sell)+chip('DTE at sell',Math.round(days(state.sell,c.expiry)))+chip('Holding',Math.round(days(DATA.dataDate,state.sell))+'d');
+  if(spec&&spec.deb!=null&&spec.kind!=='surface')h+=chip(spec.credit?'Credit':'Debit',fmtU(spec.deb));
+  h+=chip('Window',`$${winLo()}\u2013$${winHi()}`);
+  $('labchips').innerHTML=h;}
+function renderSide(spec,c){
+  if(spec.kind==='surface'){
+    const prem=k=>bsCall(DATA.spot,k,ivAt(c,k),T0(c),c.r);
+    let h=`<h3>Surface readout \u00b7 $10k / strike</h3><table><thead><tr><th>K</th><th>Prem</th><th>Ret @ $${winHi()}</th></tr></thead><tbody>`;
+    STRIKES.forEach(k=>{const r=100*(cVal(c,k,bToS(winHi()))/prem(k)-1);h+=`<tr><td>${k}</td><td>${fmtU(prem(k))}</td><td class="${r>=0?'pos':'neg'}">${fmtP(r)}</td></tr>`;});
+    $('side').innerHTML=h+`</tbody></table>`;return;}
+  if(spec.kind==='single'){
+    const hb=state.hover,rows=STRIKES.map(k=>{const p=cPrem(c,k),be=solve(s=>cVal(c,k,s)-p,.01,400),
+      ret=100*(cVal(c,k,bToS(hb!=null?hb:winHi()))/p-1);
+      return{k,p,be:sToB(be),pop:popUp(be,c.iv[k],HLD,c.r)*100,ret};});
+    let bi=0;rows.forEach((r,i)=>{if(r.ret>rows[bi].ret)bi=i;});
+    const head=hb!=null?`@ $${hb.toFixed(0)}`:`@ $${winHi()}`;
+    let h=`<h3>Per strike \u00b7 $10k each</h3><table><thead><tr><th>K</th><th>Prem</th><th>BE&nbsp;$/bbl</th><th>PoP</th><th>Ret ${head}</th></tr></thead><tbody>`;
+    rows.forEach((r,i)=>h+=`<tr class="${i===bi?'best':''}"><td>${r.k}</td><td>${fmtU(r.p)}</td><td style="color:var(--gold)">${fmtB(r.be)}</td><td>${fmtPp(r.pop)}</td><td class="${r.ret>=0?'pos':'neg'}">${fmtP(r.ret)}</td></tr>`);
+    $('side').innerHTML=h+`</tbody></table>`;return;}
+  const s=spec.stats,row=(k,v,cls='')=>`<div class="stat"><span class="k">${k}</span><span class="v ${cls}">${v}</span></div>`;
+  if(s.type==='calldebit'){const ct=Math.floor(10000/(s.deb*100));
+    $('side').innerHTML=`<h3>Bull call \u00b7 long K${s.kb} / short K${s.ks}</h3>`+
+      row('Width / net debit',`$${s.w} / ${fmtU(s.deb)}`)+row('Spreads per $10k',`${ct}`)+
+      row('Max profit (expiry)',`${fmtP(s.cap)} \u00b7 ${fmtK(ct*100*(s.w-s.deb))}`,'pos')+row('Max loss',`\u2212100% \u00b7 ${fmtK(-ct*s.deb*100)}`,'neg')+
+      row('Brent for max profit',`\u2265 ${fmtB(sToB(s.ks))}`)+row('Breakeven (expiry)',fmtB(s.beExp))+row('Breakeven (sell date)',fmtB(s.beSell))+
+      row('PoP \u2014 hold to expiry',fmtPp(s.popExp))+row('PoP \u2014 at sell date',fmtPp(s.popSell));}
+  else if(s.type==='putcredit'){const ct=Math.floor(10000/(s.capital*100));
+    $('side').innerHTML=`<h3>Bull put credit \u00b7 short K${s.ks} / long K${s.kb}</h3>`+
+      row('Width / net credit',`$${s.w} / ${fmtU(s.credit)}`)+row('Capital at risk / spread',fmtU(s.capital))+row('Spreads per $10k risk',`${ct}`)+
+      row('Max profit (expiry)',`${fmtP(s.cap)} \u00b7 ${fmtK(ct*s.credit*100)}`,'pos')+row('Max loss',`\u2212100% \u00b7 ${fmtK(-ct*s.capital*100)}`,'neg')+
+      row('Full credit if Brent',`\u2265 ${fmtB(sToB(s.ks))} at expiry`)+row('Breakeven (expiry)',fmtB(s.beExp))+row('Breakeven (sell date)',fmtB(s.beSell))+
+      row('PoP \u2014 hold to expiry',fmtPp(s.popExp))+row('PoP \u2014 at sell date',fmtPp(s.popSell));}
+  else if(s.type==='diagonal'){const ct=Math.floor(10000/(s.deb*100));
+    $('side').innerHTML=`<h3>Diagonal \u00b7 long K${s.kb} ${s.cl.short} / short K${s.ks} ${s.cs.short}</h3>`+
+      row('Net debit',`${fmtU(s.deb)} (${ct} per $10k)`)+row('Long time left at short expiry',`${Math.round(s.rem*365)} d`)+
+      row('Peak return',`${fmtP(s.peak)} near ${fmtB(s.peakB)}`,'pos')+row('Max loss',`\u2212100% \u00b7 ${fmtK(-ct*s.deb*100)}`,'neg')+
+      row('Breakeven(s)',s.bes.length?s.bes.map(fmtB).join(' / '):'\u2014')+row('Short worthless if Brent',`< ${fmtB(sToB(s.ks))}`)+
+      row('PoP at short expiry',fmtPp(s.pop));}}
+
+let PF=[];
+const KINDMAP={lc:['call',1],sc:['call',-1],lp:['put',1],sp:['put',-1],ls:['share',1],ss:['share',-1]};
+function legValAt(leg,B,t,ivm){
+  const S=B/DATA.mult*Math.exp(state.roll*t);
+  if(leg.kind==='share')return leg.qty*S;
+  const c=DATA.contracts[leg.exp],texp=Math.max(days(DATA.dataDate,c.expiry),1)/365,rem=texp-t;
+  if(rem<=1e-9)return leg.qty*100*(leg.kind==='call'?Math.max(S-leg.K,0):Math.max(leg.K-S,0));
+  const iv=Math.max(0.03,ivAt(c,leg.K)*ivm);
+  return leg.qty*100*(leg.kind==='call'?bsCall(S,leg.K,iv,rem,c.r):bsPut(S,leg.K,iv,rem,c.r));}
+function legVal(leg,brent,sellISO,bump){return legValAt(leg,brent,yrs(DATA.dataDate,sellISO),state.ivMult+(bump||0));}
+const legCost=leg=>leg.kind==='share'?leg.qty*leg.cost:leg.qty*100*leg.cost;
+const portVal=(brent,sellISO,bump)=>PF.reduce((a,l)=>a+legVal(l,brent,sellISO,bump),0);
+const portCost=()=>PF.reduce((a,l)=>a+legCost(l),0);
+const legLabel=l=>l.kind==='share'?`${l.qty>0?'Long':'Short'} ${Math.abs(l.qty)} sh`:`${l.qty>0?'+':'\u2212'}${Math.abs(l.qty)} ${DATA.contracts[l.exp].short} ${l.K}${l.kind==='call'?'c':'p'}`;
+function modelCost(kind,exp,K){if(kind==='share')return +DATA.spot.toFixed(2);const c=DATA.contracts[exp];
+  return +(kind==='call'?bsCall(DATA.spot,K,ivAt(c,K),T0(c),c.r):bsPut(DATA.spot,K,ivAt(c,K),T0(c),c.r)).toFixed(2);}
+function savePF(){try{localStorage.setItem('bnoPF',JSON.stringify(PF));}catch(e){}}
+function loadPF(){try{const s=localStorage.getItem('bnoPF');if(s){const a=JSON.parse(s);if(Array.isArray(a))return a;}}catch(e){}return null;}
+function saveSIM(){try{localStorage.setItem('bnoSIM',JSON.stringify({pk:state.pk,tiers:state.tiers,reg:state.reg}));}catch(e){}}
+function loadSIM(){try{const s=localStorage.getItem('bnoSIM');if(s){const o=JSON.parse(s);
+  if(o&&o.pk&&o.pk.mu)state.pk=o.pk;
+  if(o&&Array.isArray(o.tiers)&&o.tiers.length)state.tiers=o.tiers.map(t=>({on:t.on?1:0,pct:+t.pct||0,tgt:+t.tgt||120}));
+  if(o&&o.reg&&REG[o.reg])state.reg=o.reg;}}catch(e){}}
+
+function drawPortfolio(){
+  if(state.step!=='build')return;
+  const lo=winLo(),hi=winHi();
+  state.pBrent=clamp(Math.round(+$('pbrent').value||120),lo,hi);
+  $('pbrent').value=state.pBrent;
+  const sell=state.pSell,cost=portCost();
+  const H=470,ph=H-M.t-M.b;
+  const X=b=>M.l+(b-lo)/(hi-lo)*PW;
+  const N=200,B=Array.from({length:N+1},(_,i)=>lo+(hi-lo)*i/N);
+  const pl=B.map(b=>[b,portVal(b,sell)-cost]);
+  let ylo=Math.min(0,...pl.map(p=>p[1])),yhi=Math.max(0,...pl.map(p=>p[1]));
+  const pad=(yhi-ylo)*0.10||100;yhi+=pad;ylo-=pad;
+  const Y=v=>M.t+(yhi-v)/(yhi-ylo)*ph,zeroY=Y(0);
+  const g={s:`<rect width="${VW}" height="${H}" fill="#101218" rx="8"/><rect x="${M.l}" y="${M.t}" width="${PW}" height="${ph}" fill="#0c0e13" stroke="#262a33"/>`};
+  axesXY(g,lo,hi,ylo,yhi,X,Y,ph,'PORTFOLIO P/L ($)',fmtKa);
+  if(PF.length){
+    const top=pl.map(p=>`${X(p[0]).toFixed(1)},${Y(p[1]).toFixed(1)}`).join(' ');
+    const area=`${X(pl[0][0]).toFixed(1)},${zeroY.toFixed(1)} `+top+` ${X(pl[N][0]).toFixed(1)},${zeroY.toFixed(1)}`;
+    g.s+=`<defs><clipPath id="ca"><rect x="${M.l}" y="${M.t}" width="${PW}" height="${Math.max(0,zeroY-M.t).toFixed(1)}"/></clipPath><clipPath id="cb"><rect x="${M.l}" y="${zeroY.toFixed(1)}" width="${PW}" height="${Math.max(0,M.t+ph-zeroY).toFixed(1)}"/></clipPath></defs>`;
+    g.s+=`<polygon points="${area}" fill="${terrain(0.32)}" opacity="0.16" clip-path="url(#ca)"/>`;
+    g.s+=`<polygon points="${area}" fill="${terrain(0.12)}" opacity="0.18" clip-path="url(#cb)"/>`;
+    g.s+=`<polyline points="${top}" fill="none" stroke="${terrain(0.6)}" stroke-width="3" stroke-linejoin="round"/>`;
+    for(let i=1;i<pl.length;i++){const a=pl[i-1],b=pl[i];if((a[1]<0)!==(b[1]<0)){const f=-a[1]/(b[1]-a[1]);g.s+=`<circle cx="${X(a[0]+(b[0]-a[0])*f).toFixed(1)}" cy="${zeroY.toFixed(1)}" r="3.5" fill="${terrain(0.6)}" stroke="#0c0e13"/>`;}}
+    const px=X(state.pBrent).toFixed(1),plAt=portVal(state.pBrent,sell)-cost;
+    g.s+=`<line x1="${px}" y1="${M.t}" x2="${px}" y2="${M.t+ph}" stroke="#fff" stroke-opacity="0.5" stroke-dasharray="3 4"/><circle cx="${px}" cy="${Y(plAt).toFixed(1)}" r="4" fill="#fff"/><text x="${px}" y="${M.t+12}" fill="#fff" font-size="10.5" text-anchor="middle">$${state.pBrent.toFixed(0)} \u2192 ${fmtK(plAt)}</text>`;
+  }else g.s+=`<text x="${M.l+PW/2}" y="${M.t+ph/2}" fill="#6b727b" font-size="14" text-anchor="middle">Add positions to preview the book</text>`;
+  $('pchart').innerHTML=g.s;
+  $('plegend').innerHTML=`<span><i style="background:${terrain(0.6)}"></i>P/L at mark date</span><span style="color:var(--mut)">shaded: green = profit / blue = loss</span>`;
+  renderPortfolioSide();renderPortfolioTable();
+  $('pfcount').textContent=PF.length;
+}
+function renderPortfolioSide(){
+  const row=(k,v,cls='')=>`<div class="stat"><span class="k">${k}</span><span class="v ${cls}">${v}</span></div>`;
+  if(!PF.length){$('pside').innerHTML='';return;}
+  const cost=portCost(),val=portVal(state.pBrent,state.pSell),pl=val-cost;
+  const delta=portVal(state.pBrent+0.5,state.pSell)-portVal(state.pBrent-0.5,state.pSell);
+  const vega=portVal(state.pBrent,state.pSell,0.01)-val;
+  const theta=portVal(state.pBrent,addDays(state.pSell,1))-val;
+  $('pside').innerHTML=
+    row('Net '+(cost>=0?'debit':'credit'),'$'+Math.abs(Math.round(cost)).toLocaleString())+
+    row('P/L @ scenario',`${fmtK(pl)}${Math.abs(cost)>1?` \u00b7 ${fmtP(pl/Math.abs(cost)*100)}`:''}`,pl>=0?'pos':'neg')+
+    row('Net delta','$'+Math.round(delta).toLocaleString()+' / $1 Brent',delta>=0?'pos':'neg')+
+    row('Net vega','$'+Math.round(vega).toLocaleString()+' / +1 vol pt',vega>=0?'pos':'neg')+
+    row('Net theta','$'+Math.round(theta).toLocaleString()+' / day',theta>=0?'pos':'neg');}
+function renderPortfolioTable(){
+  if(!PF.length){$('pftablewrap').innerHTML=`<div style="color:var(--mut);font-size:11.5px">Empty book \u2014 push a strategy in from the lab or add legs below.</div>`;return;}
+  const cost=portCost(),val=portVal(state.pBrent,state.pSell);
+  let h=`<table><thead><tr><th>Position</th><th>Cost</th><th>Book</th><th>Value</th><th>P/L</th><th></th></tr></thead><tbody>`;
+  PF.forEach((l,i)=>{const v=legVal(l,state.pBrent,state.pSell),bk=legCost(l),pl=v-bk;
+    h+=`<tr><td style="color:${l.qty>0?'var(--pos)':'var(--neg)'}">${legLabel(l)}</td><td>${fmtU(l.cost)}</td><td>${fmtKa(bk)}</td><td>${fmtKa(v)}</td><td class="${pl>=0?'pos':'neg'}">${fmtK(pl)}</td><td><button class="rm" data-i="${i}" aria-label="remove">\u00d7</button></td></tr>`;});
+  h+=`<tr class="tot"><td>Net</td><td></td><td>${fmtKa(cost)}</td><td>${fmtKa(val)}</td><td class="${val-cost>=0?'pos':'neg'}">${fmtK(val-cost)}</td><td></td></tr>`;
+  $('pftablewrap').innerHTML=h+`</tbody></table>`;
+  $('pftablewrap').querySelectorAll('.rm').forEach(b=>b.onclick=()=>{PF.splice(+b.dataset.i,1);savePF();drawPortfolio();});}
+
+function stratLegs(){
+  const lots=Math.max(1,Math.round(+$('lots').value||1)),m=state.mode;
+  if(m==='single')return[{kind:'call',exp:state.ck,K:state.addK,qty:lots,cost:modelCost('call',state.ck,state.addK)}];
+  if(m==='calldebit')return[{kind:'call',exp:state.ck,K:state.kBuy,qty:lots,cost:modelCost('call',state.ck,state.kBuy)},
+    {kind:'call',exp:state.ck,K:state.kSell,qty:-lots,cost:modelCost('call',state.ck,state.kSell)}];
+  if(m==='putcredit')return[{kind:'put',exp:state.ck,K:state.kSell,qty:-lots,cost:modelCost('put',state.ck,state.kSell)},
+    {kind:'put',exp:state.ck,K:state.kBuy,qty:lots,cost:modelCost('put',state.ck,state.kBuy)}];
+  return[{kind:'call',exp:state.ck,K:state.kBuy,qty:lots,cost:modelCost('call',state.ck,state.kBuy)},
+    {kind:'call',exp:state.shortck,K:state.kSell,qty:-lots,cost:modelCost('call',state.shortck,state.kSell)}];}
+function updateAddLbl(){
+  const lots=Math.max(1,Math.round(+$('lots').value||1)),m=state.mode,c=ctr();
+  let t='';
+  if(m==='single')t=`Add ${lots}\u00d7 ${c.short} ${state.addK}c`;
+  else if(m==='calldebit')t=`Add ${lots}\u00d7 ${c.short} ${state.kBuy}/${state.kSell} call spread`;
+  else if(m==='putcredit')t=`Add ${lots}\u00d7 ${c.short} ${state.kBuy}/${state.kSell} put spread`;
+  else t=`Add ${lots}\u00d7 ${state.kBuy} ${c.short} / ${state.kSell} ${ctr(state.shortck).short} diag`;
+  $('addlbl').textContent=t;}
+
+function rollImpact(){
+  const r=state.roll,r0=CURVE.def,W=640,H=96,n=7;
+  let g=`<text x="0" y="10" fill="#8b939d" font-size="10.5">BNO impact by month \u00b7 you ${r>=0?'+':''}${(r*100).toFixed(0)}%/yr vs curve ${r0>=0?'+':''}${(r0*100).toFixed(0)}%/yr</text>`;
+  const bw=(W-16)/n,zero=56,ds=[];
+  let maxd=0;
+  for(let m=1;m<=n;m++){const d=100*(Math.exp(r*m/12)-Math.exp(r0*m/12))/Math.exp(r0*m/12);ds.push(d);maxd=Math.max(maxd,Math.abs(d));}
+  const k=maxd>0?Math.min(2.6,24/maxd):2.6;
+  g+=`<line x1="0" y1="${zero}" x2="${W}" y2="${zero}" stroke="rgba(255,255,255,.18)"/>`;
+  ds.forEach((d,i)=>{const x=8+i*bw,w=bw-14,cx=x+w/2,h=Math.max(Math.abs(d)*k,0.6),y=d>=0?zero-h:zero;
+    g+=`<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" rx="2.5" fill="${d>=0?'rgba(79,209,176,.75)':'rgba(224,122,106,.75)'}"/>`;
+    g+=`<text x="${cx.toFixed(1)}" y="${(d>=0?y-3.5:zero+h+10).toFixed(1)}" fill="${d>=0?'#7fd39b':'#e07a6a'}" font-size="9.5" text-anchor="middle">${d>=0?'+':''}${d.toFixed(1)}%</text>`;
+    g+=`<text x="${cx.toFixed(1)}" y="${(d>=0?zero+10:zero-4).toFixed(1)}" fill="#6b727b" font-size="9" text-anchor="middle">+${i+1}mo</text>`;});
+  $('rollviz').innerHTML=g;}
+function updateScn(){
+  const atm=DATA.contracts.october.iv[50]*100;
+  $('ivchip').textContent=`Oct ATM ${atm.toFixed(0)}% \u2192 ${(atm*state.ivMult).toFixed(0)}% (\u00d7${state.ivMult.toFixed(2)})`;
+  const r=state.roll;
+  $('rollchip').textContent=`${r>=0?'+':''}${(r*100).toFixed(0)}%/yr ${Math.abs(r-CURVE.def)<0.005?'\u00b7 curve default':(r<0?'\u00b7 contango':'\u00b7 backwardation')}`;
+  rollImpact();}
+
+function drawPreview(){
+  const W=1100,H=430,ml=58,mr=120,mt=24,mb=46,pw=W-ml-mr,ph=H-mt-mb;
+  const pk=state.pk,B0=DATA.brent0;
+  const D=Math.max(8,Math.round(days(DATA.dataDate,pk.date)));
+  const Hor=clamp(D+3*pk.dsig+18,70,390);
+  const ylo=86,yhi=Math.max(pk.mu+2.4*pk.sig,135);
+  const X=d=>ml+d/Hor*pw, Y=b=>mt+(yhi-b)/(yhi-ylo)*ph;
+  let g=`<rect width="${W}" height="${H}" fill="#101218" rx="8"/><rect x="${ml}" y="${mt}" width="${pw}" height="${ph}" fill="#0c0e13" stroke="#262a33"/>`;
+  g+=`<defs><linearGradient id="pvg" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#4fd1b0"/><stop offset="0.7" stop-color="#d9c47e"/><stop offset="1" stop-color="#ff8a5c"/></linearGradient></defs>`;
+  niceTicks(ylo,yhi,6).forEach(v=>{const y=Y(v).toFixed(1);g+=`<line x1="${ml}" y1="${y}" x2="${ml+pw}" y2="${y}" stroke="#fff" stroke-opacity="0.06"/><text x="${ml-8}" y="${+y+4}" fill="#9aa1aa" font-size="11" text-anchor="end">$${v.toFixed(0)}</text>`;});
+  const MN=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const mc=pdate(DATA.dataDate);mc.setUTCDate(1);mc.setUTCMonth(mc.getUTCMonth()+1);
+  for(let gd=0;gd<16;gd++){
+    const iso=mc.toISOString().slice(0,10),dd=days(DATA.dataDate,iso);
+    if(dd>Hor)break;
+    const x=X(dd).toFixed(1);
+    g+=`<line x1="${x}" y1="${mt}" x2="${x}" y2="${mt+ph}" stroke="#fff" stroke-opacity="0.05"/><text x="${x}" y="${mt+ph+16}" fill="#8b939d" font-size="10.5" text-anchor="middle">${MN[mc.getUTCMonth()]}</text>`;
+    mc.setUTCMonth(mc.getUTCMonth()+1);}
+  [['july','#5aa9ff'],['october','#d9c47e'],['january','#a98ef5']].forEach(p=>{
+    const dd=days(DATA.dataDate,DATA.contracts[p[0]].expiry);
+    if(dd<=Hor){const x=X(dd).toFixed(1);g+=`<line x1="${x}" y1="${mt}" x2="${x}" y2="${mt+ph}" stroke="${p[1]}" stroke-opacity="0.4" stroke-dasharray="2 5"/><text x="${x}" y="${mt+11}" fill="${p[1]}" font-size="9.5" text-anchor="middle" opacity="0.85">${DATA.contracts[p[0]].short} exp</text>`;}});
+  const rng=mulberry32(42);
+  for(let i=0;i<14;i++){
+    const P=clamp(pk.mu+pk.sig*gaussOf(rng),B0*1.04,400);
+    const TP=clamp(Math.round(D+pk.dsig*gaussOf(rng)),5,365);
+    const dd=0.20+0.10*rng();
+    let pth=`M${X(0).toFixed(1)} ${Y(B0).toFixed(1)}`;
+    const step=Math.max(1,Math.round(TP/90));
+    let reached=true;
+    for(let d=step;d<=TP;d+=step){
+      if(d>Hor){reached=false;break;}
+      const bb=(B0+(P-B0)*Math.pow(d/TP,2.2))*Math.exp(0.012*gaussOf(rng)-0.000072);
+      pth+=` L${X(d).toFixed(1)} ${Y(clamp(bb,ylo,yhi)).toFixed(1)}`;}
+    if(reached&&TP+1<=Hor)pth+=` L${X(TP).toFixed(1)} ${Y(clamp(P,ylo,yhi)).toFixed(1)} L${X(TP+1).toFixed(1)} ${Y(clamp(P*(1-dd),ylo,yhi)).toFixed(1)}`;
+    g+=`<path d="${pth}" fill="none" stroke="#4fd1b0" stroke-opacity="0.13" stroke-width="1.3"/>`;}
+  let bp=`M${X(0).toFixed(1)} ${Y(B0).toFixed(1)}`;
+  for(let d=2;d<=D;d+=2)bp+=` L${X(d).toFixed(1)} ${Y(clamp(B0+(pk.mu-B0)*Math.pow(d/D,2.2),ylo,yhi)).toFixed(1)}`;
+  bp+=` L${X(D).toFixed(1)} ${Y(clamp(pk.mu,ylo,yhi)).toFixed(1)}`;
+  g+=`<path d="${bp}" fill="none" stroke="url(#pvg)" stroke-width="3" stroke-linejoin="round"/>`;
+  if(D+1<=Hor)g+=`<path d="M${X(D).toFixed(1)} ${Y(clamp(pk.mu,ylo,yhi)).toFixed(1)} L${X(D+1).toFixed(1)} ${Y(clamp(pk.mu*0.75,ylo,yhi)).toFixed(1)}" stroke="#e07a6a" stroke-width="3" fill="none" stroke-linecap="round"/>`;
+  const rx=Math.max(6,X(D+pk.dsig)-X(D)), ry=Math.max(6,Y(pk.mu)-Y(pk.mu+pk.sig));
+  g+=`<ellipse cx="${X(D).toFixed(1)}" cy="${Y(clamp(pk.mu,ylo+2,yhi-2)).toFixed(1)}" rx="${rx.toFixed(1)}" ry="${ry.toFixed(1)}" fill="rgba(217,196,126,0.06)" stroke="#d9c47e" stroke-dasharray="5 5" stroke-width="1.4"/>`;
+  g+=`<circle cx="${X(D).toFixed(1)}" cy="${Y(clamp(pk.mu,ylo,yhi)).toFixed(1)}" r="3.6" fill="#d9c47e"/>`;
+  state.tiers.forEach((t,i)=>{if(!t.on||t.pct<=0)return;if(t.tgt<ylo||t.tgt>yhi)return;const y=Y(t.tgt).toFixed(1);
+    g+=`<line x1="${ml}" y1="${y}" x2="${ml+pw}" y2="${y}" stroke="#ff3da6" stroke-opacity="0.55" stroke-dasharray="6 5" stroke-width="1.2"/><text x="${ml+pw+8}" y="${+y+4}" fill="#ff3da6" font-size="10.5">T${i+1} ${t.pct}% @ $${t.tgt}</text>`;});
+  g+=`<text x="${ml}" y="14" fill="#8b939d" font-size="11">BRENT PATH \u00b7 today \u2192 sampled blow-off \u00b7 spot $${B0.toFixed(2)}</text>`;
+  g+=`<circle cx="${X(0).toFixed(1)}" cy="${Y(B0).toFixed(1)}" r="3.4" fill="#edf1f5"/><text x="${(X(0)+7).toFixed(1)}" y="${(Y(B0)-7).toFixed(1)}" fill="#9aa1aa" font-size="10">spot</text>`;
+  $('spv').innerHTML=g;}
+
+function buildTiers(){
+  $('tiersbox').innerHTML=state.tiers.map((t,i)=>`<div class="tier">
+    <button class="tog${t.on?' on':''}" data-i="${i}" ${i===0?'disabled style="opacity:.6;cursor:default"':''} aria-label="tier ${i+1} on/off"></button>
+    <span class="fld">sell <input type="number" data-i="${i}" data-f="pct" value="${t.pct}" min="0" max="100" step="5">%</span>
+    <span class="fld">@ Brent $<input type="number" data-i="${i}" data-f="tgt" value="${t.tgt}" min="96" max="400" step="5"></span>
+  </div>`).join('');
+  $('tiersbox').querySelectorAll('.tog').forEach(b=>{if(b.disabled)return;
+    b.onclick=()=>{const t=state.tiers[+b.dataset.i];t.on=t.on?0:1;saveSIM();buildTiers();drawPreview();};});
+  $('tiersbox').querySelectorAll('input').forEach(inp=>inp.onchange=()=>{
+    const t=state.tiers[+inp.dataset.i],f=inp.dataset.f;
+    t[f]=clamp(Math.round(+inp.value||0),f==='pct'?0:96,f==='pct'?100:400);inp.value=t[f];
+    saveSIM();tierCheck();drawPreview();});
+  tierCheck();}
+function activeTiers(){return state.tiers.filter(t=>t.on&&t.pct>0);}
+function tierCheck(){const sum=activeTiers().reduce((a,t)=>a+t.pct,0),el=$('tsum');
+  if(sum===100){el.className='chip ok';el.innerHTML='\u03a3 100% \u2713';return true;}
+  el.className='chip warn';el.innerHTML=`\u03a3 ${sum}% \u2260 100`;return false;}
+
+function runMC(){
+  if(!PF.length){toast('Portfolio is empty \u2014 build it in step 1');return null;}
+  if(!tierCheck()){toast('Exit tiers must total 100%');return null;}
+  const t0=Date.now();
+  const rng=mulberry32(state.seed>>>0);
+  const tiersA=state.tiers.map((t,i)=>({i,pct:t.pct/100,tgt:t.tgt,on:t.on})).filter(t=>t.on&&t.pct>0);
+  const reg=REG[state.reg];
+  const legs=PF.map(l=>({kind:l.kind,exp:l.exp,K:l.K,qty:l.qty,
+    expD:l.kind==='share'?1e9:Math.round(days(DATA.dataDate,DATA.contracts[l.exp].expiry))}));
+  const cost=portCost(),B0=DATA.brent0;
+  const Dmu=Math.max(5,Math.round(days(DATA.dataDate,state.pk.date)));
+  const N=state.mcN,tn=tiersA.length;
+  const pnls=new Float64Array(N);
+  const preHit=new Array(tn).fill(0),fillLead=Array.from({length:tn},()=>[]);
+  let allPre=0,anyExpired=0;
+  for(let n=0;n<N;n++){
+    const P=clamp(state.pk.mu+state.pk.sig*gaussOf(rng),B0*1.04,400);
+    const TP=clamp(Math.round(Dmu+state.pk.dsig*gaussOf(rng)),5,365);
+    const dd=0.20+0.10*rng();
+    const path=new Float64Array(TP+2);path[0]=B0;
+    for(let d=1;d<TP;d++){const bb=B0+(P-B0)*Math.pow(d/TP,2.2);path[d]=bb*Math.exp(0.012*gaussOf(rng)-0.000072);}
+    path[TP]=P;path[TP+1]=P*(1-dd);
+    const ivmOf=(d,kind)=>d>=TP+1?reg.pb*(kind==='put'?reg.pk:reg.cc):1+(reg.pb-1)*Math.pow(Math.pow(Math.min(d,TP)/TP,2.2),1.5);
+    const ed=new Array(tn);let all=true;
+    for(let t=0;t<tn;t++){let e=TP+1;const tg=tiersA[t].tgt;
+      for(let d=1;d<=TP;d++)if(path[d]>=tg){e=d;break;}
+      ed[t]=e;if(e<=TP){preHit[t]++;fillLead[t].push(TP-e);}else all=false;}
+    if(all)allPre++;
+    let pnl=-cost,expFlag=false;
+    for(let t=0;t<tn;t++){const e=ed[t];let V=0;
+      for(let li=0;li<legs.length;li++){const l=legs[li];
+        const le=Math.min(e,l.expD);
+        if(l.expD<e&&l.kind!=='share')expFlag=true;
+        V+=legValAt(l,path[le],le/365,le>=e?ivmOf(le,l.kind):1);}
+      pnl+=tiersA[t].pct*V;}
+    if(expFlag)anyExpired++;
+    pnls[n]=pnl;}
+  const sorted=Array.from(pnls).sort((a,b)=>a-b);
+  const q=p=>sorted[Math.min(N-1,Math.max(0,Math.round(p*(N-1))))];
+  const tout=tiersA.map((t,ti)=>{const fl=fillLead[ti].sort((a,b)=>a-b);
+    return{i:t.i,pct:t.pct,tgt:t.tgt,pre:preHit[ti]/N,lead:fl.length?fl[Math.floor(fl.length/2)]:NaN};});
+  const res={N,cost,seed:state.seed,reg:reg.label,
+    min:sorted[0],max:sorted[N-1],med:q(0.5),p5:q(0.05),p95:q(0.95),
+    mean:sorted.reduce((a,x)=>a+x,0)/N,win:sorted.reduce((a,x)=>a+(x>0?1:0),0)/N,
+    allPre:allPre/N,anyExpired:anyExpired/N,
+    crashWtd:tout.reduce((a,t)=>a+t.pct*(1-t.pre),0),
+    tiers:tout,sorted,ms:Date.now()-t0};
+  state.lastRes=res;
+  $('runinfo').innerHTML=`<b>${N.toLocaleString()}</b> trials \u00b7 ${res.ms}ms \u00b7 seed ${state.seed}`;
+  drawResults();
+  return res;}
+
+function placeRes(){const svg=$('resfig');svg.setAttribute('width',1240);svg.setAttribute('height',780);
+  svg.innerHTML=`<rect width="1240" height="780" fill="#0d0f14" rx="10"/><text x="620" y="372" fill="#5d6670" font-size="17" text-anchor="middle" font-family="monospace">Configure the spike and run the simulation to populate the distribution</text><text x="620" y="402" fill="#3f4750" font-size="12" text-anchor="middle" font-family="monospace">median \u00b7 P5\u2013P95 \u00b7 min/max \u00b7 tier fill timing \u00b7 PNG export</text>`;
+  $('mcchips').innerHTML='';}
+function drawResults(){
+  const r=state.lastRes;if(!r){placeRes();return;}
+  const W=1240,H=780,svg=$('resfig');svg.setAttribute('width',W);svg.setAttribute('height',H);
+  const s=r.sorted,N=r.N;
+  const qf=p=>s[Math.min(N-1,Math.max(0,Math.floor(p*(N-1))))];
+  let lo=Math.min(0,qf(0.004)),hi=Math.max(0,qf(0.996));
+  if(hi-lo<1)hi=lo+1;
+  const span0=hi-lo;lo-=span0*0.05;hi+=span0*0.05;
+  const bins=46,cnt=new Array(bins).fill(0);
+  for(let i=0;i<N;i++){let b=Math.floor((s[i]-lo)/(hi-lo)*bins);if(b<0)b=0;if(b>bins-1)b=bins-1;cnt[b]++;}
+  const maxc=Math.max.apply(null,cnt)||1;
+  const hx0=64,hx1=830,hy0=112,hy1=556,bw=(hx1-hx0)/bins;
+  const Xp=v=>hx0+(v-lo)/(hi-lo)*(hx1-hx0),Yc=c=>hy1-c/maxc*(hy1-hy0);
+  let g=`<defs><linearGradient id="gh" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#4fd1b0"/><stop offset="0.45" stop-color="#d9c47e"/><stop offset="0.8" stop-color="#a98ef5"/><stop offset="1" stop-color="#5aa9ff"/></linearGradient><linearGradient id="gpos" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="rgba(79,209,176,0.22)"/><stop offset="1" stop-color="rgba(127,211,155,0.92)"/></linearGradient><linearGradient id="gneg" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="rgba(90,169,255,0.2)"/><stop offset="1" stop-color="rgba(90,169,255,0.85)"/></linearGradient></defs>`;
+  g+=`<rect width="${W}" height="${H}" fill="#0d0f14" rx="10"/>`;
+  g+=`<text x="36" y="44" fill="url(#gh)" font-size="25" font-weight="800" letter-spacing="2" font-family="monospace">BNO SPIKE LAB \u00b7 MONTE CARLO OUTCOMES</text>`;
+  g+=`<text x="36" y="67" fill="#8d97a2" font-size="12" font-family="monospace">${N.toLocaleString()} trials \u00b7 seed ${r.seed} \u00b7 peak $${state.pk.mu}\u00b1${state.pk.sig} \u00b7 date ${state.pk.date} \u00b1${state.pk.dsig}d \u00b7 ${esc(r.reg)} vol \u00b7 roll ${state.roll>=0?'+':''}${(state.roll*100).toFixed(0)}%/yr \u00b7 ${PF.length} legs \u00b7 net ${fmtKa(r.cost)}</text>`;
+  for(let i=0;i<=4;i++){const c=maxc*i/4,y=Yc(c).toFixed(1);
+    g+=`<line x1="${hx0}" y1="${y}" x2="${hx1}" y2="${y}" stroke="#fff" stroke-opacity="0.06"/><text x="${hx0-8}" y="${+y+4}" fill="#7e8894" font-size="10.5" text-anchor="end" font-family="monospace">${Math.round(c)}</text>`;}
+  cnt.forEach((c,i)=>{if(!c)return;const x0=hx0+i*bw,mid=lo+(i+0.5)/bins*(hi-lo);
+    g+=`<rect x="${(x0+0.8).toFixed(1)}" y="${Yc(c).toFixed(1)}" width="${(bw-1.6).toFixed(1)}" height="${(hy1-Yc(c)).toFixed(1)}" fill="url(#${mid>=0?'gpos':'gneg'})" rx="1.5"/>`;});
+  niceTicks(lo,hi,8).forEach(v=>{const x=Xp(v).toFixed(1);
+    g+=`<text x="${x}" y="${hy1+20}" fill="#8d97a2" font-size="11" text-anchor="middle" font-family="monospace">${fmtKa(v)}</text>`;});
+  g+=`<line x1="${hx0}" y1="${hy1}" x2="${hx1}" y2="${hy1}" stroke="#3a414b"/>`;
+  g+=`<text x="${(hx0+hx1)/2}" y="${hy1+44}" fill="#7e8894" font-size="11.5" text-anchor="middle" letter-spacing="1.5" font-family="monospace">TRIAL P/L AT EXIT ($)</text>`;
+  if(0>=lo&&0<=hi){const x=Xp(0).toFixed(1);g+=`<line x1="${x}" y1="${hy0-6}" x2="${x}" y2="${hy1}" stroke="#fff" stroke-opacity="0.5" stroke-width="1.3"/><text x="${x}" y="${hy0-12}" fill="#cfd6dd" font-size="10.5" text-anchor="middle" font-family="monospace">$0</text>`;}
+  [[r.p5,'P5'],[r.p95,'P95']].forEach(pv=>{const x=Xp(pv[0]).toFixed(1);
+    g+=`<line x1="${x}" y1="${hy0}" x2="${x}" y2="${hy1}" stroke="#9aa1aa" stroke-dasharray="4 5" stroke-opacity="0.6"/><text x="${x}" y="${hy0-2}" fill="#9aa1aa" font-size="10" text-anchor="middle" font-family="monospace">${pv[1]}</text>`;});
+  {const xm=clamp(+Xp(r.med).toFixed(1),hx0,hx1);
+   g+=`<line x1="${xm}" y1="${hy0-6}" x2="${xm}" y2="${hy1}" stroke="#d9c47e" stroke-width="2.2"/>`;
+   const bx=clamp(xm-50,hx0,hx1-100);
+   g+=`<rect x="${bx.toFixed(1)}" y="${hy0-34}" width="100" height="18" rx="4" fill="rgba(217,196,126,0.14)" stroke="#d9c47e" stroke-opacity="0.6"/><text x="${(bx+50).toFixed(1)}" y="${hy0-21}" fill="#d9c47e" font-size="11" text-anchor="middle" font-weight="700" font-family="monospace">med ${fmtKa(r.med)}</text>`;}
+  [r.min,r.max].forEach(v=>{const x=clamp(+Xp(v),hx0,hx1).toFixed(1);
+    g+=`<path d="M${x} ${hy1+2} l-5 8 l10 0 z" fill="#e8a861"/>`;});
+  const px0=858,pw2=350;
+  g+=`<rect x="${px0}" y="100" width="${pw2}" height="372" rx="12" fill="rgba(255,255,255,0.03)" stroke="rgba(255,255,255,0.09)"/>`;
+  const roi=Math.abs(r.cost)>1?` \u00b7 ${fmtP(r.med/Math.abs(r.cost)*100)}`:'';
+  const rows=[['MEDIAN P/L',fmtK(r.med)+roi,'#d9c47e',19],
+    ['Mean',fmtK(r.mean),'#cfd6dd',13],
+    ['Win rate',(r.win*100).toFixed(1)+'%',r.win>=0.5?'#7fd39b':'#e07a6a',13],
+    ['P5 \u2192 P95',`${fmtKa(r.p5)} \u2192 ${fmtKa(r.p95)}`,'#cfd6dd',13],
+    ['Min / Max',`${fmtKa(r.min)} / ${fmtKa(r.max)}`,'#cfd6dd',13],
+    ['All tiers filled pre-peak',(r.allPre*100).toFixed(0)+'%','#4fd1b0',13],
+    ['Sold into crash (weighted)',(r.crashWtd*100).toFixed(0)+'%','#e8a861',13],
+    ['\u22651 leg expired early',(r.anyExpired*100).toFixed(0)+'% of trials','#9aa1aa',12]];
+  let yy=128;
+  rows.forEach(rw=>{g+=`<text x="${px0+20}" y="${yy}" fill="#7e8894" font-size="10.5" letter-spacing="1" font-family="monospace">${rw[0]}</text><text x="${px0+pw2-20}" y="${yy+(rw[3]>15?25:18)}" fill="${rw[2]}" font-size="${rw[3]}" text-anchor="end" font-weight="700" font-family="monospace">${rw[1]}</text>`;
+    yy+=rw[3]>15?50:38;});
+  let ty=640;
+  g+=`<text x="36" y="${ty-16}" fill="#8d97a2" font-size="11" letter-spacing="1.5" font-family="monospace">EXIT TIMING BY TIER \u00b7 run-up fill vs crash-day liquidation</text>`;
+  r.tiers.forEach(t=>{
+    const bx=300,bw2=560,pre=t.pre,crash=1-pre;
+    g+=`<text x="36" y="${ty+13}" fill="#cfd6dd" font-size="12" font-family="monospace">T${t.i+1} \u00b7 ${Math.round(t.pct*100)}% @ $${t.tgt}</text>`;
+    g+=`<rect x="${bx}" y="${ty}" width="${bw2}" height="17" rx="5" fill="rgba(255,255,255,0.05)"/>`;
+    if(pre>0.001)g+=`<rect x="${bx}" y="${ty}" width="${(bw2*pre).toFixed(1)}" height="17" rx="3" fill="rgba(79,209,176,0.8)"/>`;
+    if(crash>0.001)g+=`<rect x="${(bx+bw2*pre).toFixed(1)}" y="${ty}" width="${(bw2*crash).toFixed(1)}" height="17" rx="3" fill="rgba(232,168,97,0.85)"/>`;
+    g+=`<text x="${bx+bw2+14}" y="${ty+13}" fill="#9aa1aa" font-size="11" font-family="monospace">${(pre*100).toFixed(0)}% run-up \u00b7 ${(crash*100).toFixed(0)}% crash${isNaN(t.lead)?'':` \u00b7 fills ~${t.lead}d pre-top`}</text>`;
+    ty+=34;});
+  g+=`<text x="36" y="${H-16}" fill="#5d6670" font-size="10" font-family="monospace">Parabolic blow-off (p=2.2, 1.2%/day noise) \u00b7 crash U(\u221220%,\u221230%) day after peak \u00b7 sign-aware crash vol \u00b7 BS marks on 6/5 EODHD smiles \u00b7 expired legs freeze at intrinsic \u00b7 not advice</text>`;
+  svg.innerHTML=g;
+  $('mcchips').innerHTML=chip('Median',fmtK(r.med))+chip('Win',(r.win*100).toFixed(0)+'%')+chip('P5\u2013P95',`${fmtKa(r.p5)} \u2192 ${fmtKa(r.p95)}`)+chip('Min',fmtKa(r.min))+chip('Max',fmtKa(r.max))+chip('Crash exits',(r.crashWtd*100).toFixed(0)+'%');}
+
+$('expng').onclick=()=>{
+  if(!state.lastRes){toast('Run the simulation first');return;}
+  try{
+    const svg=$('resfig');
+    const src=new XMLSerializer().serializeToString(svg);
+    const url=URL.createObjectURL(new Blob([src],{type:'image/svg+xml;charset=utf-8'}));
+    const img=new Image();
+    img.onload=()=>{try{
+      const c=document.createElement('canvas');c.width=2480;c.height=1560;
+      const x=c.getContext('2d');x.fillStyle='#0d0f14';x.fillRect(0,0,c.width,c.height);
+      x.drawImage(img,0,0,c.width,c.height);
+      c.toBlob(b=>{if(!b){toast('PNG encode failed');return;}
+        const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='bno_spike_sim.png';
+        document.body.appendChild(a);a.click();a.remove();
+        setTimeout(()=>URL.revokeObjectURL(a.href),5000);},'image/png');
+      URL.revokeObjectURL(url);
+    }catch(err){toast('Export failed: '+err.message);}};
+    img.onerror=()=>toast('Export failed \u2014 rasterize error');
+    img.src=url;
+  }catch(err){toast('Export failed: '+err.message);}};
+
+$('steps').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
+  const sv=b.dataset.s;if(sv===state.step)return;state.step=sv;
+  document.querySelectorAll('#steps button').forEach(x=>x.classList.toggle('on',x.dataset.s===sv));
+  $('tab-build').classList.toggle('hidden',sv!=='build');
+  $('tab-sim').classList.toggle('hidden',sv!=='sim');
+  if(sv==='build'){draw();drawPortfolio();}else{drawPreview();if(state.lastRes)drawResults();else placeRes();}});
+function rerenderAll(){if(state.step==='build'){draw();drawPortfolio();}else drawPreview();}
+$('ivpreset').onchange=()=>{const v=$('ivpreset').value;if(v==='c')return;state.ivMult=+v;$('ivmult').value=v;updateScn();rerenderAll();};
+$('ivmult').oninput=()=>{state.ivMult=+$('ivmult').value;$('ivpreset').value='c';updateScn();rerenderAll();};
+$('rollslider').oninput=()=>{state.roll=+$('rollslider').value;updateScn();rerenderAll();};
+$('stratcards').addEventListener('click',e=>{const b=e.target.closest('.scard');if(!b)return;state.mode=b.dataset.m;applyMode();});
+
+function strikeOpts(sel,arr,cur){sel.innerHTML=arr.map(k=>`<option value="${k}"${k===cur?' selected':''}>$${k}</option>`).join('');}
+function buildSelects(){strikeOpts($('kbuy'),STRIKES.filter(k=>k<=80),state.kBuy);strikeOpts($('ksell'),STRIKES.filter(k=>k>=55),state.kSell);strikeOpts($('addk'),STRIKES,state.addK);buildShortExp();}
+function buildShortExp(){const sel=$('shortexp');
+  const opts=DATA.order.filter(k=>days(DATA.contracts[k].expiry,ctr(state.ck).expiry)>0);
+  if(!opts.includes(state.shortck))state.shortck=opts[0]||'july';
+  sel.innerHTML=opts.map(k=>`<option value="${k}"${k===state.shortck?' selected':''}>${DATA.contracts[k].label}</option>`).join('');}
+function syncStrikes(){
+  if(state.kSell<=state.kBuy){const i=STRIKES.indexOf(state.kBuy);
+    state.kSell=STRIKES[Math.min(i+1,STRIKES.length-1)];
+    if(state.kSell<=state.kBuy)state.kBuy=STRIKES[Math.max(0,STRIKES.indexOf(state.kSell)-1)];}
+  $('kbuy').value=state.kBuy;$('ksell').value=state.kSell;}
+function applyMode(){
+  document.querySelectorAll('#stratcards .scard').forEach(b=>b.classList.toggle('on',b.dataset.m===state.mode));
+  const m=state.mode,isDiag=m==='diagonal',isSpread=m==='calldebit'||m==='putcredit'||isDiag,isSingle=m==='single';
+  if(!isSingle)state.view='curves';
+  $('viewtog').classList.toggle('hidden',!isSingle);
+  document.querySelectorAll('#viewtog button').forEach(b=>b.classList.toggle('on',b.dataset.v===state.view));
+  $('addkg').classList.toggle('hidden',!isSingle);
+  document.querySelectorAll('.legpair').forEach(el=>el.classList.toggle('hidden',!isSpread));
+  $('shortexpg').classList.toggle('hidden',!isDiag);
+  $('sellg').classList.toggle('hidden',isDiag);
+  $('explab').textContent=isDiag?'Long leg expiration':'Expiration';
+  if(isDiag&&state.ck==='july')state.ck='october';
+  document.querySelectorAll('#exp button').forEach(b=>b.classList.toggle('on',b.dataset.c===state.ck));
+  const ex=ctr().expiry;$('sell').max=ex;
+  if(days(state.sell,ex)<0){state.sell=ex;$('sell').value=ex;}
+  if(m==='putcredit'){$('kbuylab').textContent='Buy put (lower K)';$('kselllab').textContent='Sell put (higher K)';}
+  else if(isDiag){$('kbuylab').textContent='Long call strike';$('kselllab').textContent='Short call strike';}
+  else{$('kbuylab').textContent='Buy call (lower K)';$('kselllab').textContent='Sell call (higher K)';}
+  buildShortExp();syncStrikes();draw();}
+
+$('exp').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
+  state.ck=b.dataset.c;
+  document.querySelectorAll('#exp button').forEach(x=>x.classList.toggle('on',x===b));
+  const ex=ctr().expiry;$('sell').max=ex;
+  if(days(state.sell,ex)<0){state.sell=ex;$('sell').value=ex;}
+  buildShortExp();draw();});
+$('shortexp').onchange=()=>{state.shortck=$('shortexp').value;draw();};
+$('sell').onchange=()=>{let v=$('sell').value||state.sell;
+  if(days(DATA.dataDate,v)<1)v=addDays(DATA.dataDate,1);
+  const ex=ctr().expiry;if(days(v,ex)<0)v=ex;
+  state.sell=v;$('sell').value=v;draw();};
+$('kbuy').onchange=()=>{state.kBuy=+$('kbuy').value;syncStrikes();draw();};
+$('ksell').onchange=()=>{state.kSell=+$('ksell').value;syncStrikes();draw();};
+$('viewtog').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
+  state.view=b.dataset.v;
+  document.querySelectorAll('#viewtog button').forEach(x=>x.classList.toggle('on',x===b));draw();});
+$('addk').onchange=()=>{state.addK=+$('addk').value;updateAddLbl();};
+$('lots').onchange=()=>{const v=Math.max(1,Math.round(+$('lots').value||1));$('lots').value=v;updateAddLbl();};
+$('addstrat').onclick=()=>{const legs=stratLegs();PF.push(...legs);savePF();drawPortfolio();
+  toast(`Added ${legs.length} leg${legs.length>1?'s':''} at modeled mids \u2192 book now ${PF.length}`);};
+
+function pfFormState(){const k=$('lkind').value,isShare=k==='ls'||k==='ss';
+  $('lexpg').classList.toggle('hidden',isShare);$('lstrikeg').classList.toggle('hidden',isShare);
+  $('lqtylab').textContent=isShare?'Shares':'Qty';
+  $('lcostlab').textContent=isShare?'Cost / share':'Cost basis';}
+function fillModelCost(){const kind=KINDMAP[$('lkind').value][0];
+  $('lcost').value=modelCost(kind,$('lexp').value,clamp(Math.round(+$('lK').value||60),40,110));}
+$('lkind').onchange=()=>{pfFormState();fillModelCost();};
+$('lexp').onchange=fillModelCost;
+$('lK').onchange=()=>{const v=clamp(Math.round(+$('lK').value||60),40,110);$('lK').value=v;fillModelCost();};
+$('lmodel').onclick=fillModelCost;
+$('ladd').onclick=()=>{const km=KINDMAP[$('lkind').value],kind=km[0],sgn=km[1];
+  const qty=sgn*Math.max(1,Math.round(+$('lqty').value||1));
+  const cost=Math.max(0,+$('lcost').value||0);
+  const leg=kind==='share'?{kind,qty,cost}:{kind,exp:$('lexp').value,K:clamp(Math.round(+$('lK').value||60),40,110),qty,cost};
+  PF.push(leg);savePF();drawPortfolio();toast('Leg added');};
+$('psell').onchange=()=>{let v=$('psell').value||state.pSell;
+  if(days(DATA.dataDate,v)<1)v=addDays(DATA.dataDate,1);
+  state.pSell=v;$('psell').value=v;drawPortfolio();};
+$('pbrent').onchange=()=>drawPortfolio();
+$('pexport').onclick=()=>{$('pjson').value=JSON.stringify(PF);toast('Exported \u2014 copy the JSON below');};
+$('pimport').onclick=()=>{try{const a=JSON.parse($('pjson').value);
+  if(!Array.isArray(a))throw 0;
+  PF=a.filter(l=>l&&l.kind&&l.qty&&(l.kind==='share'||(DATA.contracts[l.exp]&&l.K))).map(l=>({...l,qty:Math.round(+l.qty),cost:Math.max(0,+l.cost||0)}));
+  savePF();drawPortfolio();toast(`Imported ${PF.length} legs`);}catch(err){toast('Bad JSON \u2014 nothing imported');}};
+$('pclear').onclick=()=>{if(!PF.length)return;if(confirm('Clear all positions?')){PF=[];savePF();drawPortfolio();}};
+
+function pkChanged(){saveSIM();drawPreview();draw();drawPortfolio();}
+$('pkmu').onchange=()=>{state.pk.mu=clamp(Math.round(+$('pkmu').value||150),100,380);$('pkmu').value=state.pk.mu;pkChanged();};
+$('pksig').onchange=()=>{state.pk.sig=clamp(Math.round(+$('pksig').value||0),0,80);$('pksig').value=state.pk.sig;pkChanged();};
+$('pkdate').onchange=()=>{let v=$('pkdate').value;if(!v||days(DATA.dataDate,v)<8)v=state.pk.date;state.pk.date=v;$('pkdate').value=v;pkChanged();};
+$('dsigsel').onchange=()=>{const v=$('dsigsel').value;if(v==='c')return;state.pk.dsig=+v;$('pkdsig').value=v;pkChanged();};
+$('pkdsig').onchange=()=>{state.pk.dsig=clamp(Math.round(+$('pkdsig').value||21),1,90);$('pkdsig').value=state.pk.dsig;
+  $('dsigsel').value=['7','21','42'].indexOf(String(state.pk.dsig))>=0?String(state.pk.dsig):'c';pkChanged();};
+$('tnorm').onclick=()=>{const act=activeTiers();if(!act.length)return;
+  const sum=act.reduce((a,t)=>a+t.pct,0);let acc=0;
+  act.forEach((t,i)=>{if(i<act.length-1){t.pct=sum?Math.round(t.pct/sum*100):Math.floor(100/act.length);acc+=t.pct;}else t.pct=100-acc;});
+  saveSIM();buildTiers();drawPreview();};
+$('regsel').onchange=()=>{state.reg=$('regsel').value;saveSIM();};
+$('mcn').onchange=()=>{state.mcN=+$('mcn').value;};
+$('mcseed').onchange=()=>{state.seed=Math.abs(Math.round(+$('mcseed').value||0));$('mcseed').value=state.seed;};
+$('reroll').onclick=()=>{state.seed=Math.floor(Math.random()*1e6);$('mcseed').value=state.seed;};
+$('runmc').onclick=()=>runMC();
+
+window.__lab={state,REG,CURVE,DATA,legValAt,bsCall,bsPut,runMC,portCost,getPF:()=>PF,setPF:a=>{PF=a;},drawPortfolio,drawPreview,drawResults,buildTiers,tierCheck};
+function init(){
+  const saved=loadPF();
+  PF=saved!==null?saved:[
+    {kind:'call',exp:'october',K:60,qty:12,cost:modelCost('call','october',60)},
+    {kind:'call',exp:'october',K:75,qty:-12,cost:modelCost('call','october',75)}];
+  loadSIM();
+  while(state.tiers.length<3)state.tiers.push({on:0,pct:0,tgt:150});
+  state.tiers=state.tiers.slice(0,3);state.tiers[0].on=1;
+  $('mcseed').value=state.seed;
+  $('rollslider').value=state.roll;
+  $('ivmult').value=state.ivMult;
+  $('pkmu').value=state.pk.mu;$('pksig').value=state.pk.sig;$('pkdate').value=state.pk.date;$('pkdsig').value=state.pk.dsig;
+  $('dsigsel').value=['7','21','42'].indexOf(String(state.pk.dsig))>=0?String(state.pk.dsig):'c';
+  $('regsel').value=state.reg;$('mcn').value=String(state.mcN);
+  buildStratCards();buildSelects();buildTiers();pfFormState();fillModelCost();
+  updateScn();applyMode();drawPortfolio();drawPreview();placeRes();}
+init();
+</script>
+</body>
+</html>
